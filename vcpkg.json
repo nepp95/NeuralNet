@@ -1,0 +1,25 @@
+{
+  "builtin-baseline": "8779f47d2db0785ee034b47fdfdcdb0e88b7010e",
+  "dependencies": [
+    {
+      "name": "glfw3",
+      "version>=": "3.4"
+    },
+    {
+      "name": "glm",
+      "version>=": "1.0.3"
+    },
+    {
+      "name": "imgui",
+      "version>=": "1.92.7",
+      "features": [
+        "docking-experimental",
+        "glfw-binding"
+      ]
+    },
+    {
+      "name": "nlohmann-json",
+      "version>=": "3.12.0"
+    }
+  ]
+}
