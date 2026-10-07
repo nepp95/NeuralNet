@@ -1,9 +1,17 @@
-#include <iostream>
+#include "pch.h"
 
-#include "NeuralNetwork.hpp"
+#include "Application.h"
 
 auto main() -> int
 {
-    std::cout << nn::Version() << '\n';
+    auto app = new NN::Application();
+
+    if (app->Init() == false || app->Run() == false)
+    {
+        delete app;
+        return 1;
+    }
+
+    delete app;
     return 0;
 }

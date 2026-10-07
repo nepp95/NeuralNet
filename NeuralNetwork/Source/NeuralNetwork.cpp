@@ -1,6 +1,7 @@
-#include "NeuralNetwork.hpp"
+#include "pch.h"
+#include "NeuralNetwork.h"
 
-namespace nn
+namespace NN
 {
     auto Version() -> std::string
     {

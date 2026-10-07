@@ -1,0 +1,60 @@
+#include "pch.h"
+#include "Window.h"
+
+#include <iostream>
+
+namespace NN
+{
+    namespace
+    {
+        auto GLFWErrorCallback(int error, const char* description) -> void
+        {
+            std::cout << "GLFW Error: (" << error << ") " << description << "\n";
+        }
+    }
+
+    Window::Window(uint32_t width, uint32_t height)
+        : m_Width(width), m_Height(height)
+    {
+        auto success = glfwInit();
+        if (success != GLFW_TRUE)
+        {
+            std::cout << "Failed to initialize glfw!\n";
+            return;
+        }
+
+        glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
+        glfwWindowHint(GLFW_MAXIMIZED, GLFW_FALSE);
+        glfwSetErrorCallback(GLFWErrorCallback);
+
+        m_Window = glfwCreateWindow(m_Width, m_Height, "Neural Network", nullptr, nullptr);
+        if (!m_Window)
+        {
+            glfwTerminate();
+            m_Window = nullptr;
+            return;
+        }
+
+        // Set callbacks
+        glfwSetWindowUserPointer(m_Window, this);
+
+        glfwSetWindowCloseCallback(
+            m_Window,
+            [](GLFWwindow* window) -> void
+            {
+                const auto* self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+            }
+        );
+    }
+
+    Window::~Window()
+    {
+        glfwDestroyWindow(m_Window);
+        glfwTerminate();
+    }
+
+    auto Window::ProcessEvents() -> void
+    {
+        glfwPollEvents();
+    }
+}

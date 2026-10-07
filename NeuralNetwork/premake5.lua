@@ -9,9 +9,12 @@ project "NeuralNetwork"
 
     files
     {
-        "Source/**.hpp",
+        "Source/**.h",
         "Source/**.cpp",
     }
+
+    pchheader "pch.h"
+    pchsource "Source/pch.cpp"
 
     includedirs
     {
