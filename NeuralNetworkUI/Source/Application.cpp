@@ -1,8 +1,11 @@
 #include "pch.h"
 #include "Application.h"
 
+#include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
 
 namespace NN
 {
@@ -10,13 +13,20 @@ namespace NN
 
     Application::~Application()
     {
+        Log::Info("Closing application...");
+
+        m_Image.reset();
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplGlfw_Shutdown();
         ImGui::DestroyContext();
-        m_Window = nullptr;
+        m_Window.reset();
     }
 
     auto Application::Init() -> bool
     {
         // Create window
+        Log::Info("Creating window imgui");
+
         m_Window = std::make_unique<Window>(1280, 720);
         if (!m_Window || !m_Window->Valid())
             return false;
@@ -29,6 +39,11 @@ namespace NN
         );
 
         // Initialize imgui
+        Log::Info("Initializing imgui");
+
+        glfwMakeContextCurrent(m_Window->GetNative());
+        gladLoadGL(reinterpret_cast<GLADloadfunc>(glfwGetProcAddress));
+
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
 
@@ -39,6 +54,10 @@ namespace NN
         io.FontDefault = io.Fonts->AddFontDefault();
 
         ImGui::StyleColorsDark();
+        ImGui_ImplGlfw_InitForOpenGL(m_Window->GetNative(), true);
+        ImGui_ImplOpenGL3_Init();
+
+        m_Image = std::make_unique<Image>(ImageParams{ 1280, 720 });
 
         m_IsRunning = true;
         return true;
@@ -53,7 +72,29 @@ namespace NN
             m_LastFrameTime = time;
 
             m_Window->ProcessEvents();
+
+            ImGui_ImplOpenGL3_NewFrame();
+            ImGui_ImplGlfw_NewFrame();
+            ImGui::NewFrame();
             OnUpdate();
+
+            ImGui::Render();
+            int width, height;
+            glfwGetFramebufferSize(m_Window->GetNative(), &width, &height);
+            glViewport(0, 0, width, height);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glBlitNamedFramebuffer(
+                m_Image->GetFramebuffer(), 0, 0, 0, m_Image->GetWidth(), m_Image->GetHeight(), 0, 0, width, height, GL_COLOR_BUFFER_BIT,
+                GL_LINEAR
+            );
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+            GLFWwindow* context = glfwGetCurrentContext();
+            ImGui::UpdatePlatformWindows();
+            ImGui::RenderPlatformWindowsDefault();
+            glfwMakeContextCurrent(context);
+
+            glfwSwapBuffers(m_Window->GetNative());
         }
 
         return true;
@@ -64,7 +105,10 @@ namespace NN
         m_IsRunning = false;
     }
 
-    auto Application::OnUpdate() -> void {}
+    auto Application::OnUpdate() -> void
+    {
+        ImGui::ShowDemoWindow(&m_IsRunning);
+    }
 
     auto Application::OnEvent(Event& e) -> void
     {

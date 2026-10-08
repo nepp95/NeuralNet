@@ -2,6 +2,7 @@
 
 #include "Event/Event.h"
 
+#define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
 namespace NN
@@ -18,6 +19,7 @@ namespace NN
         auto SetEventCallback(const EventCallbackFn& callback) { m_EventCallback = callback; }
 
         auto Valid() const -> bool { return m_Window != nullptr; }
+        auto GetNative() const -> GLFWwindow* { return m_Window; }
 
     private:
         GLFWwindow* m_Window = nullptr;

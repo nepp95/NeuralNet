@@ -14,7 +14,8 @@
       "version>=": "1.92.7",
       "features": [
         "docking-experimental",
-        "glfw-binding"
+        "glfw-binding",
+        "opengl3-binding"
       ]
     },
     {

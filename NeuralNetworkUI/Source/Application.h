@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Event/ApplicationEvent.h"
+#include "Image.h"
 #include "Window.h"
 
 namespace NN
@@ -24,6 +25,7 @@ namespace NN
 
     private:
         std::unique_ptr<Window> m_Window = nullptr;
+        std::unique_ptr<Image> m_Image = nullptr;
 
         bool m_IsRunning = false;
         float m_LastFrameTime = 0.0f;
