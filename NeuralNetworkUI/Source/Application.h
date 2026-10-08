@@ -25,6 +25,8 @@ namespace NN
 
     private:
         std::unique_ptr<Window> m_Window = nullptr;
+
+        std::vector<uint32_t> m_ImageData;
         std::unique_ptr<Image> m_Image = nullptr;
 
         bool m_IsRunning = false;

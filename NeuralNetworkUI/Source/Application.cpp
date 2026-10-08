@@ -107,7 +107,25 @@ namespace NN
 
     auto Application::OnUpdate() -> void
     {
-        ImGui::ShowDemoWindow(&m_IsRunning);
+        // Prep image
+        const auto width = m_Image->GetWidth();
+        const auto height = m_Image->GetHeight();
+        const auto imageSize = width * height * 4;
+
+        if (imageSize != m_ImageData.size())
+            m_ImageData.resize(imageSize);
+
+        // Write image
+        for (uint32_t y = 0; y < height; y++)
+        {
+            for (uint32_t x = 0; x < width; x++)
+            {
+                m_ImageData[width * y + x] = static_cast<uint32_t>(rand() * 255);
+            }
+        }
+
+        // Upload image
+        m_Image->SetData(m_ImageData.data());
     }
 
     auto Application::OnEvent(Event& e) -> void
