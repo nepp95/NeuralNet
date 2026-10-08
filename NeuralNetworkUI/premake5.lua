@@ -2,7 +2,7 @@ project "NeuralNetworkUI"
     kind "ConsoleApp"
     language "C++"
     cppdialect "C++20"
-    staticruntime "on"
+    staticruntime "off"
 
     targetdir ("%{wks.location}/build/bin/" .. OutputDir .. "/%{prj.name}")
     objdir ("%{wks.location}/build/obj/" .. OutputDir .. "/%{prj.name}")
@@ -18,25 +18,21 @@ project "NeuralNetworkUI"
 
     includedirs
     {
+        "Source",
+        Dependencies.IncludeDirectories.Glad,
         Dependencies.IncludeDirectories.Library,
         Dependencies.IncludeDirectories.Vcpkg,
     }
 
-    links "NeuralNetwork"
+    links
+    {
+        "glad",
+        "NeuralNetwork"
+    }
 
-    filter "system:windows"
-        systemversion "latest"
-
-    filter "configurations:Debug"
-        symbols "on"
-
-    filter "configurations:not Debug"
-        optimize "on"
-
-    -- The vcpkg libraries resolve at final link time, so the import library
-    -- search paths and GLFW's runtime DLL must follow the executable.
     filter { "system:windows", "configurations:Debug" }
         libdirs (Dependencies.LibraryDirectories.Debug)
+        links { "glfw3dll", "imguid" }
         postbuildcommands
         {
             '{COPY} "' .. Dependencies.RuntimeDirectories.Debug .. '/glfw3.dll" "%{cfg.targetdir}"',
@@ -44,6 +40,7 @@ project "NeuralNetworkUI"
 
     filter { "system:windows", "configurations:not Debug" }
         libdirs (Dependencies.LibraryDirectories.Release)
+        links { "glfw3dll", "imgui" }
         postbuildcommands
         {
             '{COPY} "' .. Dependencies.RuntimeDirectories.Release .. '/glfw3.dll" "%{cfg.targetdir}"',
@@ -51,6 +48,8 @@ project "NeuralNetworkUI"
 
     filter { "system:linux", "configurations:Debug" }
         libdirs (Dependencies.LibraryDirectories.Debug)
+        links { "glfw3", "imgui" }
 
     filter { "system:linux", "configurations:not Debug" }
         libdirs (Dependencies.LibraryDirectories.Release)
+        links { "glfw3", "imgui" }

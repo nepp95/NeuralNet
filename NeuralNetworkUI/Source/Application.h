@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Event/ApplicationEvent.h"
 #include "Window.h"
 
 namespace NN
@@ -13,6 +14,13 @@ namespace NN
         auto Init() -> bool;
         auto Run() -> bool;
         auto Close() -> void;
+
+        auto OnUpdate() -> void;
+        auto OnEvent(Event& e) -> void;
+
+    private:
+        auto OnWindowClose(const WindowCloseEvent& e) -> bool;
+        auto OnWindowResize(const WindowResizeEvent& e) -> bool;
 
     private:
         std::unique_ptr<Window> m_Window = nullptr;

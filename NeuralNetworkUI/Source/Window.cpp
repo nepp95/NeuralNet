@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "Window.h"
 
-#include <iostream>
+#include "Event/ApplicationEvent.h"
 
 namespace NN
 {
@@ -43,6 +43,20 @@ namespace NN
             [](GLFWwindow* window) -> void
             {
                 const auto* self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+                WindowCloseEvent e;
+                self->m_EventCallback(e);
+            }
+        );
+
+        glfwSetWindowSizeCallback(
+            m_Window,
+            [](GLFWwindow* window, const int width, const int height) -> void
+            {
+                auto* self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+                self->m_Width = static_cast<uint32_t>(width);
+                self->m_Height = static_cast<uint32_t>(height);
+                WindowResizeEvent e(width, height);
+                self->m_EventCallback(e);
             }
         );
     }

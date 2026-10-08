@@ -1,9 +1,10 @@
 local vcpkgTriplet = os.host() == "windows" and "x64-windows" or "x64-linux"
-local vcpkgInstalled = NeuralNetworkRoot .. "/build/vcpkg_installed/" .. os.host() .. "/" .. vcpkgTriplet
+local vcpkgInstalled = Root .. "/build/vcpkg_installed/" .. os.host() .. "/" .. vcpkgTriplet
 
 Dependencies = {
     IncludeDirectories = {
-        Library = NeuralNetworkRoot .. "/NeuralNetwork/Source",
+        Glad = Root .. "/Vendor/glad/include",
+        Library = Root .. "/NeuralNetwork/Source",
         Vcpkg = vcpkgInstalled .. "/include",
     },
     LibraryDirectories = {
@@ -13,17 +14,5 @@ Dependencies = {
     RuntimeDirectories = {
         Debug = vcpkgInstalled .. "/debug/bin",
         Release = vcpkgInstalled .. "/bin",
-    },
-    WindowsDebugLinks = {
-        "glfw3dll", "glm", "imguid",
-        "opengl32", "gdi32", "user32", "shell32",
-    },
-    WindowsReleaseLinks = {
-        "glfw3dll", "glm", "imgui",
-        "opengl32", "gdi32", "user32", "shell32",
-    },
-    LinuxLinks = {
-        "glfw3", "glm", "imgui",
-        "X11", "Xrandr", "Xinerama", "Xcursor", "Xi", "pthread", "dl",
     },
 }
