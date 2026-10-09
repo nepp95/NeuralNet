@@ -14,10 +14,12 @@ namespace NN
         auto Guess() -> float;
         auto Train(float desired) -> void;
 
+        auto GetWeights() -> const std::vector<float>&;
+
     private:
         std::vector<float> m_Data;
         std::vector<float> m_Weights;
-        float m_LearningConstant = 0.05f;
+        float m_LearningConstant = 0.01f;
         std::function<float(float)> m_ActivationFn;
     };
 }

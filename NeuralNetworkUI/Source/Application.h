@@ -22,7 +22,14 @@ namespace NN
         auto OnEvent(Event& e) -> void;
 
     private:
-        auto RunNN() -> void;
+        auto Reset() -> void;
+        auto Test() -> void;
+
+        auto RunExample1() -> void;
+        auto DrawExample1Graph() -> void;
+        auto TestExample1(uint32_t testCount) -> uint32_t;
+        auto RunExample2() -> void;
+        auto DrawExample2Graph() -> void;
 
         auto OnWindowClose(const WindowCloseEvent& e) -> bool;
         auto OnWindowResize(const WindowResizeEvent& e) -> bool;
@@ -36,11 +43,17 @@ namespace NN
         bool m_IsRunning = false;
         float m_LastFrameTime = 0.0f;
 
+        uint32_t m_ActiveExample = 0;
+
         // NN related
         Perceptron m_Perceptron;
         std::vector<float> m_Inputs;
         std::vector<float> m_Mistakes;
         uint32_t m_LastMistakes = std::numeric_limits<uint32_t>::max();
         uint32_t m_Epochs = 0;
+        uint32_t m_TestsRun = 0;
+        float m_LastTestAccuracy = -1.0f;
+        std::vector<float> m_TestResults;
+        float m_OverallTestAccuracy = -1.0f;
     };
 }

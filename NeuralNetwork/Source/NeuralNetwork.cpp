@@ -31,6 +31,11 @@ namespace NN
             m_Weights[i] += (error * m_Data[i]) * m_LearningConstant;
     }
 
+    auto Perceptron::GetWeights() -> const std::vector<float>&
+    {
+        return m_Weights;
+    }
+
     auto Perceptron::Guess() -> float
     {
         // Weight and sum inputs
