@@ -4,6 +4,8 @@ local vcpkgInstalled = Root .. "/build/vcpkg_installed/" .. os.host() .. "/" .. 
 Dependencies = {
     IncludeDirectories = {
         Glad = Root .. "/Vendor/glad/include",
+        Stb = Root .. "/Vendor/stb",
+        Implot = Root .. "/Vendor/implot/include",
         Library = Root .. "/NeuralNetwork/Source",
         Vcpkg = vcpkgInstalled .. "/include",
     },

@@ -4,12 +4,14 @@
 #include "Image.h"
 #include "Window.h"
 
+#include <NeuralNetwork.h>
+
 namespace NN
 {
     class Application
     {
     public:
-        Application();
+        Application() = default;
         ~Application();
 
         auto Init() -> bool;
@@ -20,6 +22,8 @@ namespace NN
         auto OnEvent(Event& e) -> void;
 
     private:
+        auto RunNN() -> void;
+
         auto OnWindowClose(const WindowCloseEvent& e) -> bool;
         auto OnWindowResize(const WindowResizeEvent& e) -> bool;
 
@@ -31,5 +35,12 @@ namespace NN
 
         bool m_IsRunning = false;
         float m_LastFrameTime = 0.0f;
+
+        // NN related
+        Perceptron m_Perceptron;
+        std::vector<float> m_Inputs;
+        std::vector<float> m_Mistakes;
+        uint32_t m_LastMistakes = std::numeric_limits<uint32_t>::max();
+        uint32_t m_Epochs = 0;
     };
 }

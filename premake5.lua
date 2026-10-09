@@ -9,5 +9,6 @@ workspace "NeuralNetwork"
     OutputDir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 
     include "Vendor/glad"
+    include "Vendor/implot"
     include "NeuralNetwork"
     include "NeuralNetworkUI"

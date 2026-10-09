@@ -13,6 +13,7 @@ namespace NN
     {
     public:
         Image(const ImageParams& params);
+        Image(const std::filesystem::path& path);
         ~Image();
 
         auto SetData(void* data) -> void;
@@ -23,7 +24,7 @@ namespace NN
 
     private:
         ImageParams m_Params;
-        uint32_t m_ID;
+        uint32_t m_ID = 0;
         uint32_t m_Framebuffer = 0;
     };
 }
