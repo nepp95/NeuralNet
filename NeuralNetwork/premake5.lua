@@ -19,8 +19,13 @@ project "NeuralNetwork"
     includedirs
     {
         "Source",
+        Dependencies.IncludeDirectories.Implot,
         Dependencies.IncludeDirectories.Library,
         Dependencies.IncludeDirectories.Vcpkg,
+    }
+
+    links {
+        "implot"
     }
 
     filter { "system:windows", "configurations:Debug" }

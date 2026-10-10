@@ -20,8 +20,8 @@ project "NeuralNetworkUI"
     {
         "Source",
         Dependencies.IncludeDirectories.Glad,
-        Dependencies.IncludeDirectories.Stb,
         Dependencies.IncludeDirectories.Implot,
+        Dependencies.IncludeDirectories.Stb,
         Dependencies.IncludeDirectories.Library,
         Dependencies.IncludeDirectories.Vcpkg,
     }
@@ -29,7 +29,6 @@ project "NeuralNetworkUI"
     links
     {
         "glad",
-        "implot",
         "NeuralNetwork"
     }
 
