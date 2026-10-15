@@ -63,7 +63,8 @@ namespace NN
         ImGui_ImplOpenGL3_Init();
 
         // Initialize neural network
-        m_Example = std::make_unique<SinglePerceptronExample>();
+        // m_Example = std::make_unique<SinglePerceptronExample>();
+        m_Example = std::make_unique<MultiNeuronExample>();
 
         m_IsRunning = true;
         return true;
@@ -148,14 +149,41 @@ namespace NN
             ImGui::Text("Last test accuracy: %.2f%%", m_LastTestAccuracy);
         if (m_OverallTestAccuracy >= 0.0f)
             ImGui::Text("Overall test accuracy: %.2f%%", m_OverallTestAccuracy);
-        ImGui::End();
 
         if (m_ActiveExample != previousExample)
             Reset();
 
+        ImGui::SeparatorText("Neural Network Structure");
+
+        ImGui::TextUnformatted(
+            "INPUT:   price, shipping, bias (1.0)\n"
+            "  |\n"
+            "  v\n"
+            "LAYER 0 (2 neurons, tanh)\n"
+            "  N0:  w[price, shipping]  + bias\n"
+            "  N1:  w[price, shipping]  + bias\n"
+            "  |\n"
+            "  v\n"
+            "LAYER 1 (4 neurons, tanh)\n"
+            "  N0:  w[L0.N0, L0.N1]  + bias\n"
+            "  N1:  w[L0.N0, L0.N1]  + bias\n"
+            "  N2:  w[L0.N0, L0.N1]  + bias\n"
+            "  N3:  w[L0.N0, L0.N1]  + bias\n"
+            "  |\n"
+            "  v\n"
+            "LAYER 2 (1 neuron, tanh)\n"
+            "  N0:  w[L1.N0, L1.N1, L1.N2, L1.N3]  + bias\n"
+            "  |\n"
+            "  v\n"
+            "OUTPUT:  sign > 0 = within budget\n"
+            "         sign < 0 = over budget"
+        );
+
+        ImGui::End(); // Stats
+
         ImGui::Begin("Graph");
         m_Example->RenderVisualisation();
-        ImGui::End();
+        ImGui::End(); // Graph
     }
 
     auto Application::OnEvent(Event& e) -> void
@@ -177,7 +205,7 @@ namespace NN
 
             case 1:
             {
-                m_Example = std::make_unique<MultiPerceptronExample>();
+                m_Example = std::make_unique<MultiNeuronExample>();
                 break;
             }
 
@@ -193,9 +221,9 @@ namespace NN
     {
         m_TestsRun++;
 
-        const float correct = m_Example->Test(m_TestSampleSize);
+        const uint32_t correct = m_Example->Test(m_TestSampleSize);
 
-        m_TestResults.emplace_back(correct);
+        m_TestResults.emplace_back(static_cast<float>(correct));
         m_LastTestAccuracy = 100.0f * static_cast<float>(correct) / static_cast<float>(m_TestSampleSize);
         m_OverallTestAccuracy =
             100.0f * std::accumulate(m_TestResults.begin(), m_TestResults.end(), 0.0f) / (m_TestSampleSize * m_TestResults.size());

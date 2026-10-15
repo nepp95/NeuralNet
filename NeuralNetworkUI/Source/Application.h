@@ -34,7 +34,7 @@ namespace NN
         bool m_IsRunning = false;
         float m_LastFrameTime = 0.0f;
 
-        uint32_t m_ActiveExample = 0;
+        uint32_t m_ActiveExample = 1;
         std::unique_ptr<ExampleBase> m_Example = nullptr;
 
         uint32_t m_TestSampleSize = 100000;

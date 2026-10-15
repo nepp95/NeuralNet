@@ -8,6 +8,38 @@
 
 namespace NN
 {
+    auto SinglePerceptron::Guess() const -> float
+    {
+        // Weight and sum inputs
+        float data = 0.0f;
+        for (size_t i = 0; i < m_Data.size(); i++)
+            data += m_Data[i] * m_Weights[i];
+
+        // Activate
+        return m_ActivationFn(data);
+    }
+
+    auto SinglePerceptron::Train(float desired) -> void
+    {
+        const float guess = Guess();
+        const float error = desired - guess;
+
+        for (size_t i = 0; i < m_Data.size(); i++)
+            m_Weights[i] += (error * m_Data[i]) * m_LearningConstant;
+    }
+
+    auto SinglePerceptron::SetInputs(const std::vector<float>& inputs) -> void
+    {
+        m_Data = inputs;
+
+        if (m_Weights.empty())
+        {
+            m_Weights.resize(m_Data.size());
+            for (size_t i = 0; i < m_Weights.size(); i++)
+                m_Weights[i] = Utils::GenerateRandomFloat(-1.0f, 1.0f);
+        }
+    }
+
     auto SinglePerceptronExample::Run() -> void
     {
         // We have a set money budget: 100
@@ -44,8 +76,10 @@ namespace NN
             const size_t index = i * 3;
             const auto& price = m_Inputs.at(index);
             const auto& shipping = m_Inputs.at(index + 1);
+
             // Normalized so every sample is a unit vector
             const glm::vec3 input = glm::normalize(glm::vec3(price, shipping, 1.0f));
+
             m_Perceptron.SetInputs({ input.x, input.y, input.z });
 
             const float desired = m_Inputs.at(index + 2);
@@ -56,7 +90,6 @@ namespace NN
 
         m_LastMistakes = mistakes;
         m_Mistakes.emplace_back(static_cast<float>(mistakes));
-
         m_Epochs++;
     }
 
