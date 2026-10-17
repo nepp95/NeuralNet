@@ -1,7 +1,6 @@
 #pragma once
 
-#include "Log.h"
+#include "Utility/Log.h"
 
-#include "NeuralNetworks/ExampleBase.h"
-#include "NeuralNetworks/MultiNeuronExample.h"
-#include "NeuralNetworks/SinglePerceptronExample.h"
+#include "Core/ExampleBase.h"
+#include "Examples/XORExample.h"
