@@ -117,73 +117,80 @@ namespace NN
         m_Example->Run();
 
         // Stats
-        const auto& inputs = m_Example->GetInputs();
-        const uint32_t epochs = m_Example->GetEpochs();
-        const uint32_t lastMistakes = m_Example->GetLastMistakes();
-
-        const uint32_t samples = static_cast<uint32_t>(inputs.size() / 3);
-        const float accuracy = 100.0f * static_cast<float>(samples - lastMistakes) / static_cast<float>(samples);
-
         ImGui::Begin("Stats");
-        const uint32_t previousExample = m_ActiveExample;
-        ImGui::RadioButton("Example 1", reinterpret_cast<int*>(&m_ActiveExample), 0);
-        ImGui::RadioButton("Example 2", reinterpret_cast<int*>(&m_ActiveExample), 1);
-        if (ImGui::Button("Reset"))
-            Reset();
-        ImGui::SameLine();
-        if (ImGui::Button("Test"))
-            Test();
 
-        ImGui::SeparatorText("Stats");
+        if (m_Example)
+        {
+            const auto& inputs = m_Example->GetInputs();
+            const uint32_t epochs = m_Example->GetEpochs();
+            const uint32_t lastMistakes = m_Example->GetLastMistakes();
 
-        ImGui::Text("Accuracy: %.2f%%", accuracy);
-        ImGui::Text("Mistakes: %u", lastMistakes);
-        ImGui::Text("Samples: %u", samples);
-        ImGui::Text("Epochs: %u", epochs);
+            const uint32_t samples = static_cast<uint32_t>(inputs.size() / 3);
+            const float accuracy = 100.0f * static_cast<float>(samples - lastMistakes) / static_cast<float>(samples);
 
-        ImGui::SeparatorText("Tests");
+            const uint32_t previousExample = m_ActiveExample;
+            ImGui::RadioButton("Example 1", reinterpret_cast<int*>(&m_ActiveExample), 0);
+            ImGui::RadioButton("Example 2", reinterpret_cast<int*>(&m_ActiveExample), 1);
+            if (ImGui::Button("Reset"))
+                Reset();
+            ImGui::SameLine();
+            if (ImGui::Button("Test"))
+                Test();
 
-        ImGui::Text("Test sample size: %u", m_TestSampleSize);
-        ImGui::Text("Tests run: %u", m_TestsRun);
-        if (m_LastTestAccuracy >= 0.0f)
-            ImGui::Text("Last test accuracy: %.2f%%", m_LastTestAccuracy);
-        if (m_OverallTestAccuracy >= 0.0f)
-            ImGui::Text("Overall test accuracy: %.2f%%", m_OverallTestAccuracy);
+            ImGui::SeparatorText("Stats");
 
-        if (m_ActiveExample != previousExample)
-            Reset();
+            ImGui::Text("Accuracy: %.2f%%", accuracy);
+            ImGui::Text("Mistakes: %u", lastMistakes);
+            ImGui::Text("Samples: %u", samples);
+            ImGui::Text("Epochs: %u", epochs);
 
-        ImGui::SeparatorText("Neural Network Structure");
+            ImGui::SeparatorText("Tests");
 
-        ImGui::TextUnformatted(
-            "INPUT:   price, shipping, bias (1.0)\n"
-            "  |\n"
-            "  v\n"
-            "LAYER 0 (2 neurons, tanh)\n"
-            "  N0:  w[price, shipping]  + bias\n"
-            "  N1:  w[price, shipping]  + bias\n"
-            "  |\n"
-            "  v\n"
-            "LAYER 1 (4 neurons, tanh)\n"
-            "  N0:  w[L0.N0, L0.N1]  + bias\n"
-            "  N1:  w[L0.N0, L0.N1]  + bias\n"
-            "  N2:  w[L0.N0, L0.N1]  + bias\n"
-            "  N3:  w[L0.N0, L0.N1]  + bias\n"
-            "  |\n"
-            "  v\n"
-            "LAYER 2 (1 neuron, tanh)\n"
-            "  N0:  w[L1.N0, L1.N1, L1.N2, L1.N3]  + bias\n"
-            "  |\n"
-            "  v\n"
-            "OUTPUT:  sign > 0 = within budget\n"
-            "         sign < 0 = over budget"
-        );
+            ImGui::Text("Test sample size: %u", m_TestSampleSize);
+            ImGui::Text("Tests run: %u", m_TestsRun);
+            if (m_LastTestAccuracy >= 0.0f)
+                ImGui::Text("Last test accuracy: %.2f%%", m_LastTestAccuracy);
+            if (m_OverallTestAccuracy >= 0.0f)
+                ImGui::Text("Overall test accuracy: %.2f%%", m_OverallTestAccuracy);
+
+            if (m_ActiveExample != previousExample)
+                Reset();
+
+            ImGui::SeparatorText("Neural Network Structure");
+
+            ImGui::TextUnformatted(
+                "INPUT:   price, shipping, bias (1.0)\n"
+                "  |\n"
+                "  v\n"
+                "LAYER 0 (2 neurons, tanh)\n"
+                "  N0:  w[price, shipping]  + bias\n"
+                "  N1:  w[price, shipping]  + bias\n"
+                "  |\n"
+                "  v\n"
+                "LAYER 1 (4 neurons, tanh)\n"
+                "  N0:  w[L0.N0, L0.N1]  + bias\n"
+                "  N1:  w[L0.N0, L0.N1]  + bias\n"
+                "  N2:  w[L0.N0, L0.N1]  + bias\n"
+                "  N3:  w[L0.N0, L0.N1]  + bias\n"
+                "  |\n"
+                "  v\n"
+                "LAYER 2 (1 neuron, tanh)\n"
+                "  N0:  w[L1.N0, L1.N1, L1.N2, L1.N3]  + bias\n"
+                "  |\n"
+                "  v\n"
+                "OUTPUT:  sign > 0 = within budget\n"
+                "         sign < 0 = over budget"
+            );
+        }
 
         ImGui::End(); // Stats
 
-        ImGui::Begin("Graph");
-        m_Example->RenderVisualisation();
-        ImGui::End(); // Graph
+        if (m_Example)
+        {
+            ImGui::Begin("Graph");
+            m_Example->RenderVisualisation();
+            ImGui::End(); // Graph
+        }
     }
 
     auto Application::OnEvent(Event& e) -> void

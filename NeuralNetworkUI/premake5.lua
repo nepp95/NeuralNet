@@ -4,6 +4,7 @@ project "NeuralNetworkUI"
     cppdialect "C++20"
     staticruntime "off"
 
+    debugdir "%{wks.location}"
     targetdir ("%{wks.location}/build/bin/" .. OutputDir .. "/%{prj.name}")
     objdir ("%{wks.location}/build/obj/" .. OutputDir .. "/%{prj.name}")
 
