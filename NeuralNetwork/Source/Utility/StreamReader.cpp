@@ -1,0 +1,31 @@
+#include "pch.h"
+#include "Utility/StreamReader.h"
+
+namespace NN
+{
+    auto StreamReader::ReadString(std::string& str) -> bool
+    {
+        uint64_t size = 0;
+        if (!ReadRaw(size))
+            return false;
+
+        str.resize(size);
+        return ReadData(str.data(), sizeof(char) * size);
+    }
+
+    auto StreamReader::ReadBuffer(Buffer& buffer) -> bool
+    {
+        uint64_t size = 0;
+        if (!ReadRaw(size))
+            return false;
+
+        buffer.Allocate(size);
+        if (!ReadData(buffer.As<char>(), size))
+        {
+            buffer.Release();
+            return false;
+        }
+
+        return true;
+    }
+}

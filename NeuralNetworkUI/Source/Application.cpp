@@ -66,7 +66,7 @@ namespace NN
 
     auto Application::Run() -> bool
     {
-        m_Example = std::make_unique<XORExample>();
+        m_Example = std::make_unique<MnistExample>();
 
         while (m_IsRunning)
         {
@@ -110,7 +110,7 @@ namespace NN
         ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
 
         // Run NN
-        constexpr uint32_t epochs = 10000;
+        constexpr uint32_t epochs = 1;
         constexpr float learningRate = 0.5f;
         m_Example->Run(epochs, learningRate);
 

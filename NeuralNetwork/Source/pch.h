@@ -16,4 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "Utility/Buffer.h"
+#include "Utility/BufferReader.h"
+#include "Utility/Filesystem.h"
 #include "Utility/Log.h"
