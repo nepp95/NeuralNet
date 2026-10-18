@@ -8,6 +8,7 @@
 #include <map>
 #include <memory>
 #include <numeric>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <utility>

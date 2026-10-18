@@ -12,6 +12,8 @@ namespace NN
             Sample{ { 1, 1 }, { 0 } },
         };
 
+        m_TestSamples = m_Samples;
+
         m_Network = std::make_unique<Network>(Network{ 2, 4, 1 });
     }
 

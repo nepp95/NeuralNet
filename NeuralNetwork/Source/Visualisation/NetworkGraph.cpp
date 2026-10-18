@@ -1,7 +1,9 @@
 #include "pch.h"
 #include "Visualisation/NetworkGraph.h"
 
+#include "Core/ExampleBase.h"
 #include "Core/Network.h"
+#include "Utility/Random.h"
 
 #include <imgui.h>
 #include <implot.h>
@@ -53,6 +55,13 @@ namespace
         const auto i = static_cast<size_t>(index);
 
         return ImPlotPoint(static_cast<double>(history.Epoch(i)), static_cast<double>(history.Loss(i)));
+    }
+
+    constexpr const char* ClassLabels[] = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" };
+
+    auto IsMistake(const NN::TestViewContext& tests, size_t index) -> bool
+    {
+        return tests.Predictions[index] != tests.Actuals[index];
     }
 }
 
@@ -307,8 +316,174 @@ namespace NN
         }
     }
 
+    auto DrawTestTab(Network& network, GraphViewOptions& options, const TestViewContext& tests) -> void
+    {
+        const int sampleCount = static_cast<int>(tests.Samples.size());
+        const bool hasPredictions = tests.Predictions.size() == tests.Samples.size();
+
+        ImGui::BeginDisabled(!tests.Evaluate);
+        if (ImGui::Button("Evaluate"))
+            tests.Evaluate();
+        ImGui::EndDisabled();
+
+        ImGui::SameLine();
+        ImGui::Checkbox("Auto evaluate", &options.TestAutoEval);
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(160.0f);
+        ImGui::SliderInt("Every N epochs", &options.TestEvalInterval, 1, 100);
+
+        ImGui::SameLine();
+        if (hasPredictions)
+        {
+            const size_t correct = static_cast<size_t>(std::lround(tests.Accuracy * static_cast<float>(sampleCount)));
+            ImGui::Text(
+                "Accuracy: %.2f%% (%zu/%d) at epoch %llu", tests.Accuracy * 100.0f, correct, sampleCount,
+                static_cast<unsigned long long>(tests.LastEvaluatedEpoch)
+            );
+        }
+        else
+        {
+            ImGui::TextUnformatted("Accuracy: not evaluated");
+        }
+
+        options.TestSampleIndex = std::clamp(options.TestSampleIndex, 0, sampleCount - 1);
+
+        const Sample& sample = tests.Samples[options.TestSampleIndex];
+        const std::span<const float> output = network.Forward(sample.Inputs);
+        const size_t predicted = PredictClass(output);
+        const size_t actual = PredictClass(sample.Targets);
+
+        ImGui::BeginChild("##TestSample", ImVec2(320.0f, 0.0f));
+
+        ImGui::SliderInt("Sample", &options.TestSampleIndex, 0, sampleCount - 1);
+
+        if (ImGui::Button("Prev"))
+        {
+            int index = options.TestSampleIndex - 1;
+
+            if (options.TestOnlyMistakes && hasPredictions)
+                while (index >= 0 && !IsMistake(tests, static_cast<size_t>(index)))
+                    index--;
+
+            if (index >= 0)
+                options.TestSampleIndex = index;
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("Next"))
+        {
+            int index = options.TestSampleIndex + 1;
+
+            if (options.TestOnlyMistakes && hasPredictions)
+                while (index < sampleCount && !IsMistake(tests, static_cast<size_t>(index)))
+                    index++;
+
+            if (index < sampleCount)
+                options.TestSampleIndex = index;
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("Random"))
+            options.TestSampleIndex = static_cast<int>(Utils::GenerateRandomUInt64(0, static_cast<uint64_t>(sampleCount - 1)));
+
+        ImGui::BeginDisabled(!hasPredictions);
+        ImGui::Checkbox("Only mistakes", &options.TestOnlyMistakes);
+        ImGui::EndDisabled();
+
+        if (tests.SampleWidth > 0 && tests.SampleHeight > 0 && tests.DrawImage)
+        {
+            tests.DrawImage(sample.Inputs, tests.SampleWidth, tests.SampleHeight);
+        }
+        else
+        {
+            std::string inputs;
+            for (const float value : sample.Inputs)
+                inputs += std::format("{:.2f} ", value);
+
+            std::string targets;
+            for (const float value : sample.Targets)
+                targets += std::format("{:.2f} ", value);
+
+            ImGui::TextWrapped("Inputs: %s", inputs.c_str());
+            ImGui::TextWrapped("Targets: %s", targets.c_str());
+        }
+
+        const ImVec4 matchColor(0.35f, 0.85f, 0.35f, 1.0f);
+        const ImVec4 mismatchColor(0.95f, 0.35f, 0.30f, 1.0f);
+
+        ImGui::TextColored(matchColor, "Actual: %zu", actual);
+        ImGui::TextColored(actual == predicted ? matchColor : mismatchColor, "Predicted: %zu", predicted);
+
+        const float confidence = output.size() == 1 ? (predicted == 1 ? output.front() : 1.0f - output.front()) : output[predicted];
+        ImGui::Text("Confidence: %.2f%%", confidence * 100.0f);
+
+        ImGui::EndChild();
+
+        ImGui::SameLine();
+        ImGui::BeginChild("##TestResults", ImVec2(0.0f, 0.0f));
+
+        if (ImPlot::BeginPlot("##Outputs", ImVec2(-1.0f, 200.0f)))
+        {
+            ImPlot::SetupAxes("Class", "Activation");
+            ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, 1.0);
+
+            if (output.size() > 1 && output.size() <= 10)
+            {
+                double positions[10];
+                for (size_t i = 0; i < output.size(); i++)
+                    positions[i] = static_cast<double>(i);
+
+                ImPlot::SetupAxisTicks(ImAxis_X1, positions, static_cast<int>(output.size()), ClassLabels);
+            }
+
+            ImPlot::PlotBars("Output", output.data(), static_cast<int>(output.size()), 0.6);
+            ImPlot::EndPlot();
+        }
+
+        if (tests.ClassCount > 0 && tests.Confusion.size() == tests.ClassCount * tests.ClassCount)
+        {
+            if (ImPlot::BeginPlot("##Confusion", ImVec2(-1.0f, -1.0f)))
+            {
+                ImPlot::SetupAxes("Predicted", "Actual", 0, ImPlotAxisFlags_Invert);
+
+                if (tests.ClassCount <= 10)
+                {
+                    double centers[10];
+                    for (size_t i = 0; i < tests.ClassCount; i++)
+                        centers[i] = static_cast<double>(i) + 0.5;
+
+                    ImPlot::SetupAxisTicks(ImAxis_X1, centers, static_cast<int>(tests.ClassCount), ClassLabels);
+                    ImPlot::SetupAxisTicks(ImAxis_Y1, centers, static_cast<int>(tests.ClassCount), ClassLabels);
+                }
+
+                ImPlot::PushColormap(ImPlotColormap_Greys);
+                ImPlot::PlotHeatmap(
+                    "Count", tests.Confusion.data(), static_cast<int>(tests.ClassCount), static_cast<int>(tests.ClassCount), 0.0, 0.0,
+                    "%.0f", ImPlotPoint(0.0, 0.0), ImPlotPoint(static_cast<double>(tests.ClassCount), static_cast<double>(tests.ClassCount))
+                );
+                ImPlot::PopColormap();
+
+                const ImVec2 a = ImPlot::PlotToPixels(ImPlotPoint(static_cast<double>(predicted), static_cast<double>(actual)));
+                const ImVec2 b = ImPlot::PlotToPixels(ImPlotPoint(static_cast<double>(predicted) + 1.0, static_cast<double>(actual) + 1.0));
+                ImPlot::GetPlotDrawList()->AddRect(
+                    ImVec2(std::min(a.x, b.x), std::min(a.y, b.y)), ImVec2(std::max(a.x, b.x), std::max(a.y, b.y)),
+                    IM_COL32(255, 200, 0, 255), 0.0f, 0, 2.0f
+                );
+
+                ImPlot::EndPlot();
+            }
+        }
+        else
+        {
+            ImGui::TextUnformatted("Evaluate the test set to build the confusion matrix");
+        }
+
+        ImGui::EndChild();
+    }
+
     auto DrawNetworkGraph(
-        TrainingHistory& history, GraphViewOptions& options, const Network& network, std::span<const float> lastInputs, float lastLoss
+        TrainingHistory& history, GraphViewOptions& options, Network& network, std::span<const float> lastInputs, float lastLoss,
+        const TestViewContext& tests
     ) -> void
     {
         if (ImGui::BeginTabBar("##GraphTabs"))
@@ -322,6 +497,12 @@ namespace NN
             if (ImGui::BeginTabItem("Structure"))
             {
                 DrawStructureTab(network, lastInputs, options);
+                ImGui::EndTabItem();
+            }
+
+            if (!tests.Samples.empty() && ImGui::BeginTabItem("Test"))
+            {
+                DrawTestTab(network, options, tests);
                 ImGui::EndTabItem();
             }
 

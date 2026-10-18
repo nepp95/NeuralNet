@@ -7,6 +7,7 @@ namespace NN
 {
     MnistExample::MnistExample()
     {
+        // Load training data
         auto images = Mnist::LoadData(true);
         auto labels = Mnist::LoadLabels(true);
 
@@ -24,7 +25,28 @@ namespace NN
             );
         }
 
-        m_Network = std::make_unique<Network>(Network{ 784, 16, 10 });
+        // Load testing data
+        auto testImages = Mnist::LoadData(false);
+        auto testLabels = Mnist::LoadLabels(false);
+
+        const size_t testCount = std::min(testImages.size() / pixelCount, testLabels.size());
+
+        m_TestSamples.reserve(testCount);
+        for (size_t i = 0; i < testCount; i++)
+        {
+            std::vector<float> target(10, 0.0f);
+            target[static_cast<size_t>(testLabels[i])] = 1.0f;
+
+            m_TestSamples.emplace_back(
+                Sample{ std::vector<float>(testImages.begin() + i * pixelCount, testImages.begin() + (i + 1) * pixelCount),
+                        std::move(target) }
+            );
+        }
+
+        m_TestSampleShape = { 28, 28 };
+
+        // Create neural network
+        m_Network = std::make_unique<Network>(Network{ 784, 32, 10 });
     }
 
     auto MnistExample::Run(const uint32_t epochs, const float learningRate) -> float

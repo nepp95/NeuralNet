@@ -32,5 +32,13 @@ namespace NN
         float m_LastFrameTime = 0.0f;
 
         std::unique_ptr<ExampleBase> m_Example = nullptr;
+        std::unique_ptr<Image> m_TestImage = nullptr;
+        std::vector<uint8_t> m_TestImagePixels;
+
+        bool m_IsTraining = true;
+        bool m_StopAtLoss = true;
+        bool m_StopAtAccuracy = true;
+        float m_TargetLoss = 0.05f;
+        float m_TargetAccuracy = 0.95f;
     };
 }
