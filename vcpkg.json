@@ -24,7 +24,10 @@
     },
     {
       "name": "tracy",
-      "version>=": "0.14.1"
+      "version>=": "0.14.1",
+      "features": [
+        "on-demand"
+      ]
     }
   ]
 }

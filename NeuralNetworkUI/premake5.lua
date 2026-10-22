@@ -22,19 +22,19 @@ project "NeuralNetworkUI"
         "Source",
         Dependencies.IncludeDirectories.Glad,
         Dependencies.IncludeDirectories.Implot,
-        Dependencies.IncludeDirectories.Stb,
         Dependencies.IncludeDirectories.Library,
+        Dependencies.IncludeDirectories.Stb,
         Dependencies.IncludeDirectories.Tracy,
         Dependencies.IncludeDirectories.Vcpkg,
     }
 
     defines {
-        "TRACY_ENABLE"
+        "TRACY_ENABLE",
+        "TRACY_ON_DEMAND"
     }
 
     links
     {
-        "glad",
         "NeuralNetwork"
     }
 

@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "Image.h"
+#include "GPU/Image.h"
 
 #include <glad/gl.h>
 

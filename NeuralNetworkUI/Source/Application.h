@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Event/ApplicationEvent.h"
-#include "Image.h"
 #include "Window.h"
 
 #include <NeuralNetwork.h>
