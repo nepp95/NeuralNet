@@ -21,7 +21,12 @@ project "NeuralNetwork"
         "Source",
         Dependencies.IncludeDirectories.Implot,
         Dependencies.IncludeDirectories.Library,
+        Dependencies.IncludeDirectories.Tracy,
         Dependencies.IncludeDirectories.Vcpkg,
+    }
+
+    defines {
+        "TRACY_ENABLE"
     }
 
     links {

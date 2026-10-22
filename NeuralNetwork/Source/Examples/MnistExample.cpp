@@ -51,8 +51,10 @@ namespace NN
 
     auto MnistExample::Run(const uint32_t epochs, const float learningRate) -> float
     {
+        ZoneScoped;
+
         if (!m_Network)
-            return std::numeric_limits<float>::infinity();
+            return 0.0f;
 
         float lossSum = 0.0f;
 

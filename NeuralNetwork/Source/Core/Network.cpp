@@ -5,6 +5,8 @@ namespace NN
 {
     Network::Network(std::initializer_list<size_t> sizes)
     {
+        ZoneScoped;
+
         auto it = sizes.begin();
         size_t inputCount = *it++;
 
@@ -25,6 +27,8 @@ namespace NN
 
     auto Network::Forward(std::span<const float> input) -> std::span<const float>
     {
+        ZoneScoped;
+
         const float* prev = input.data();
 
         for (Layer& layer : Layers)
@@ -49,6 +53,8 @@ namespace NN
 
     auto Network::Backward(std::span<const float> target) -> float
     {
+        ZoneScoped;
+
         Layer& outputLayer = Layers.back();
         float loss = 0.0f;
 
@@ -90,6 +96,8 @@ namespace NN
 
     auto Network::ApplyWeightChanges(std::span<const float> input, float learningRate) -> void
     {
+        ZoneScoped;
+
         const float* prev = input.data();
 
         for (Layer& layer : Layers)
@@ -111,6 +119,8 @@ namespace NN
 
     auto Network::TrainOnce(std::span<const float> input, std::span<const float> target, float learningRate) -> float
     {
+        ZoneScoped;
+
         Forward(input);
         const float loss = Backward(target);
         ApplyWeightChanges(input, learningRate);
@@ -120,6 +130,8 @@ namespace NN
 
     auto Network::Train(std::span<const float> input, std::span<const float> target, float learningRate, size_t iterations) -> void
     {
+        ZoneScoped;
+
         for (size_t i = 0; i < iterations; i++)
             TrainOnce(input, target, learningRate);
     }

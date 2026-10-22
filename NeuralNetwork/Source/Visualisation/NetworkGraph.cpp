@@ -486,6 +486,8 @@ namespace NN
         const TestViewContext& tests
     ) -> void
     {
+        ZoneScoped;
+
         if (ImGui::BeginTabBar("##GraphTabs"))
         {
             if (ImGui::BeginTabItem("Progress"))

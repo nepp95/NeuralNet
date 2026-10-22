@@ -14,4 +14,6 @@
 #include <utility>
 #include <vector>
 
+#include <tracy/Tracy.hpp>
+
 #include "Utility/Log.h"

@@ -16,6 +16,8 @@
 #include <utility>
 #include <vector>
 
+#include <tracy/Tracy.hpp>
+
 #include "Utility/Buffer.h"
 #include "Utility/BufferReader.h"
 #include "Utility/Filesystem.h"

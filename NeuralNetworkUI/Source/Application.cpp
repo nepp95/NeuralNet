@@ -119,6 +119,8 @@ namespace NN
             glfwMakeContextCurrent(context);
 
             glfwSwapBuffers(m_Window->GetNative());
+
+            FrameMark;
         }
 
         return true;

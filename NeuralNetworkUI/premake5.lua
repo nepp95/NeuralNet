@@ -24,7 +24,12 @@ project "NeuralNetworkUI"
         Dependencies.IncludeDirectories.Implot,
         Dependencies.IncludeDirectories.Stb,
         Dependencies.IncludeDirectories.Library,
+        Dependencies.IncludeDirectories.Tracy,
         Dependencies.IncludeDirectories.Vcpkg,
+    }
+
+    defines {
+        "TRACY_ENABLE"
     }
 
     links
@@ -34,25 +39,27 @@ project "NeuralNetworkUI"
     }
 
     filter { "system:windows", "configurations:Debug" }
-        libdirs (Dependencies.LibraryDirectories.Debug)
-        links { "glfw3dll", "imguid" }
+        libdirs { Dependencies.LibraryDirectories.Debug, Dependencies.LibraryDirectories.DebugTracy }
+        links { "glfw3dll", "imguid", "TracyClient" }
         postbuildcommands
         {
             '{COPY} "' .. Dependencies.RuntimeDirectories.Debug .. '/glfw3.dll" "%{cfg.targetdir}"',
+            '{COPY} "' .. Dependencies.RuntimeDirectories.DebugTracy .. '/TracyClient.dll" "%{cfg.targetdir}"',
         }
 
     filter { "system:windows", "configurations:not Debug" }
         libdirs (Dependencies.LibraryDirectories.Release)
-        links { "glfw3dll", "imgui" }
+        links { "glfw3dll", "imgui", "TracyClient" }
         postbuildcommands
         {
             '{COPY} "' .. Dependencies.RuntimeDirectories.Release .. '/glfw3.dll" "%{cfg.targetdir}"',
+            '{COPY} "' .. Dependencies.RuntimeDirectories.Release .. '/TracyClient.dll" "%{cfg.targetdir}"',
         }
 
     filter { "system:linux", "configurations:Debug" }
         libdirs (Dependencies.LibraryDirectories.Debug)
-        links { "glfw3", "imgui" }
+        links { "glfw3", "imgui", "TracyClient" }
 
     filter { "system:linux", "configurations:not Debug" }
         libdirs (Dependencies.LibraryDirectories.Release)
-        links { "glfw3", "imgui" }
+        links { "glfw3", "imgui", "TracyClient" }

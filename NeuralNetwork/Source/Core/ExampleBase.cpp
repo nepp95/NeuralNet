@@ -16,6 +16,8 @@ namespace NN
 
     auto ExampleBase::RenderVisualisation() -> void
     {
+        ZoneScoped;
+
         if (!m_Network)
             return;
 
@@ -41,6 +43,8 @@ namespace NN
 
     auto ExampleBase::RecordRun(uint64_t epochs, float lossSum, std::span<const float> lastInputs) -> void
     {
+        ZoneScoped;
+
         m_TotalEpochs += epochs;
         m_LastLoss = lossSum / static_cast<float>(epochs * m_Samples.size());
         m_LastInputs.assign(lastInputs.begin(), lastInputs.end());
@@ -54,6 +58,8 @@ namespace NN
 
     auto ExampleBase::EvaluateTestSet() -> void
     {
+        ZoneScoped;
+
         if (!m_Network || m_TestSamples.empty())
             return;
 
