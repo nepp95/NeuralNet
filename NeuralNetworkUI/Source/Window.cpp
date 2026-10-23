@@ -25,6 +25,13 @@ namespace NN
 
         glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
         glfwWindowHint(GLFW_MAXIMIZED, GLFW_FALSE);
+
+        // Compute shaders need 4.6
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+
         glfwSetErrorCallback(GLFWErrorCallback);
 
         m_Window = glfwCreateWindow(m_Width, m_Height, "Neural Network", nullptr, nullptr);
