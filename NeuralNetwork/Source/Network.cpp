@@ -129,7 +129,6 @@ namespace NN
     {
         ZoneScoped;
 
-        // Dispatch forward
         CommandList cmd(m_Device, QueueType::Compute);
 
         const uint32_t groupSize = m_ForwardPipeline->GetLocalSize()[0];
