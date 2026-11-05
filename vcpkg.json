@@ -1,33 +1,51 @@
 {
-  "builtin-baseline": "8779f47d2db0785ee034b47fdfdcdb0e88b7010e",
   "dependencies": [
+    "eppocore",
     {
       "name": "glfw3",
       "version>=": "3.4"
     },
     {
       "name": "glm",
-      "version>=": "1.0.3"
+      "version>=": "1.0.2"
     },
     {
       "name": "imgui",
-      "version>=": "1.92.7",
+      "version>=": "1.91.9",
       "features": [
         "docking-experimental",
-        "glfw-binding",
-        "opengl3-binding"
+        "glfw-binding"
       ]
     },
-    {
-      "name": "nlohmann-json",
-      "version>=": "3.12.0"
-    },
+    "spdlog",
     {
       "name": "tracy",
       "version>=": "0.14.1",
       "features": [
         "on-demand"
       ]
+    }
+  ],
+  "overrides": [
+    {
+      "name": "glfw3",
+      "version": "3.4"
+    },
+    {
+      "name": "glm",
+      "version": "1.0.2"
+    },
+    {
+      "name": "imgui",
+      "version": "1.91.9"
+    },
+    {
+      "name": "spdlog",
+      "version-semver": "1.15.3"
+    },
+    {
+      "name": "fmt",
+      "version": "11.2.0"
     }
   ]
 }

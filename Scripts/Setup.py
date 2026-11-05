@@ -80,7 +80,13 @@ def version_at_least(output: str, minimum: tuple[int, ...]) -> bool:
     return version >= padded_minimum
 
 
-def run(command: list[str], *, cwd: Path | None = None, environment: Mapping[str, str] | None = None, capture: bool = False) -> subprocess.CompletedProcess[str]:
+def run(
+    command: list[str],
+    *,
+    cwd: Path | None = None,
+    environment: Mapping[str, str] | None = None,
+    capture: bool = False,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         command,
         cwd=cwd,
@@ -123,7 +129,9 @@ def find_vswhere() -> Path | None:
     program_files = os.environ.get("ProgramFiles(x86)")
     if not program_files:
         return None
-    candidate_path = Path(program_files) / "Microsoft Visual Studio" / "Installer" / "vswhere.exe"
+    candidate_path = (
+        Path(program_files) / "Microsoft Visual Studio" / "Installer" / "vswhere.exe"
+    )
     return candidate_path if candidate_path.is_file() else None
 
 
@@ -149,14 +157,22 @@ def find_visual_studio(action: str) -> tuple[Path, Path]:
         ],
         capture=True,
     )
-    installation = Path(result.stdout.strip()) if result.returncode == 0 and result.stdout.strip() else None
+    installation = (
+        Path(result.stdout.strip())
+        if result.returncode == 0 and result.stdout.strip()
+        else None
+    )
     if not installation:
-        raise SetupError(f"A Visual Studio installation matching {action} with the C++ workload was not found.")
+        raise SetupError(
+            f"A Visual Studio installation matching {action} with the C++ workload was not found."
+        )
 
     vcvars = installation / "VC" / "Auxiliary" / "Build" / "vcvars64.bat"
     msbuild = installation / "MSBuild" / "Current" / "Bin" / "MSBuild.exe"
     if not vcvars.is_file() or not msbuild.is_file():
-        raise SetupError(f"The Visual Studio installation at '{installation}' is missing vcvars64.bat or MSBuild.exe.")
+        raise SetupError(
+            f"The Visual Studio installation at '{installation}' is missing vcvars64.bat or MSBuild.exe."
+        )
     return vcvars, msbuild
 
 
@@ -167,7 +183,7 @@ def find_windows_toolchain(action: str) -> tuple[Path, Path]:
 def premake_bootstrap_command(vcvars: Path, action: str) -> str:
     return (
         f'call "{vcvars}" && '
-        f'nmake -f Bootstrap.mak windows-msbuild MSDEV={action} CONFIG=release PLATFORM=x64'
+        f"nmake -f Bootstrap.mak windows-msbuild MSDEV={action} CONFIG=release PLATFORM=x64"
     )
 
 
@@ -185,21 +201,43 @@ def clone_premake(source: Path, offline: bool) -> None:
         result = run(["git", "-C", str(source), "rev-parse", "HEAD"], capture=True)
         if result.returncode == 0 and result.stdout.strip() == PREMAKE_COMMIT:
             return
-        raise SetupError(f"The existing Premake source at '{source}' is not the pinned commit. Remove it and rerun setup.")
+        raise SetupError(
+            f"The existing Premake source at '{source}' is not the pinned commit. Remove it and rerun setup."
+        )
     if offline:
-        raise SetupError("Premake is missing and offline mode prevents cloning its source.")
+        raise SetupError(
+            "Premake is missing and offline mode prevents cloning its source."
+        )
 
     source.parent.mkdir(parents=True, exist_ok=True)
-    result = run(["git", "clone", "--branch", PREMAKE_TAG, "--depth", "1", PREMAKE_REPOSITORY, str(source)])
+    result = run(
+        [
+            "git",
+            "clone",
+            "--branch",
+            PREMAKE_TAG,
+            "--depth",
+            "1",
+            PREMAKE_REPOSITORY,
+            str(source),
+        ]
+    )
     if result.returncode != 0:
         raise SetupError("Cloning Premake source failed.")
     result = run(["git", "-C", str(source), "rev-parse", "HEAD"], capture=True)
     if result.returncode != 0 or result.stdout.strip() != PREMAKE_COMMIT:
-        raise SetupError("The cloned Premake source does not match the pinned beta8 commit.")
+        raise SetupError(
+            "The cloned Premake source does not match the pinned beta8 commit."
+        )
 
 
-def build_premake(root: Path, system: str, action: str, assume_yes: bool, offline: bool) -> Path:
-    if not confirm(f"Premake {PREMAKE_VERSION} is missing. Clone and build it from source in '{root / '.tools' / 'tools'}'?", assume_yes):
+def build_premake(
+    root: Path, system: str, action: str, assume_yes: bool, offline: bool
+) -> Path:
+    if not confirm(
+        f"Premake {PREMAKE_VERSION} is missing. Clone and build it from source in '{root / '.tools' / 'tools'}'?",
+        assume_yes,
+    ):
         raise SetupError("Premake provisioning was declined.")
 
     tool_root = root / ".tools" / "premake" / PREMAKE_VERSION
@@ -233,7 +271,9 @@ def build_premake(root: Path, system: str, action: str, assume_yes: bool, offlin
         destination.chmod(0o755)
     version = executable_version(destination, ["--version"])
     if not version or not parse_premake_version(version):
-        raise SetupError("The source-built Premake executable reports an unexpected version.")
+        raise SetupError(
+            "The source-built Premake executable reports an unexpected version."
+        )
     return destination
 
 
@@ -254,34 +294,64 @@ def find_vcpkg(root: Path, system: str) -> tuple[Path, Path] | None:
     return None
 
 
-def provision_vcpkg(root: Path, system: str, assume_yes: bool, offline: bool) -> tuple[Path, Path]:
+def provision_vcpkg(
+    root: Path, system: str, assume_yes: bool, offline: bool
+) -> tuple[Path, Path]:
     destination = local_vcpkg_path(root, system).parent
-    if not confirm(f"vcpkg is missing. Clone and bootstrap pinned vcpkg in '{destination}'?", assume_yes):
+    if not confirm(
+        f"vcpkg is missing. Clone and bootstrap pinned vcpkg in '{destination}'?",
+        assume_yes,
+    ):
         raise SetupError("vcpkg provisioning was declined.")
     if offline:
-        raise SetupError("vcpkg is missing and offline mode prevents cloning its source.")
+        raise SetupError(
+            "vcpkg is missing and offline mode prevents cloning its source."
+        )
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.is_dir():
         result = run(["git", "-C", str(destination), "rev-parse", "HEAD"], capture=True)
         if result.returncode != 0 or result.stdout.strip() != VCPKG_COMMIT:
-            raise SetupError(f"The existing vcpkg source at '{destination}' is not the pinned commit. Remove it and rerun setup.")
+            raise SetupError(
+                f"The existing vcpkg source at '{destination}' is not the pinned commit. Remove it and rerun setup."
+            )
     else:
         result = run(["git", "init", str(destination)])
         if result.returncode != 0:
             raise SetupError("Creating the local vcpkg source checkout failed.")
-        result = run(["git", "-C", str(destination), "remote", "add", "origin", VCPKG_REPOSITORY])
+        result = run(
+            ["git", "-C", str(destination), "remote", "add", "origin", VCPKG_REPOSITORY]
+        )
         if result.returncode != 0:
             raise SetupError("Configuring the local vcpkg source checkout failed.")
-        result = run(["git", "-C", str(destination), "fetch", "--depth", "1", "origin", VCPKG_COMMIT])
+        result = run(
+            [
+                "git",
+                "-C",
+                str(destination),
+                "fetch",
+                "--depth",
+                "1",
+                "origin",
+                VCPKG_COMMIT,
+            ]
+        )
         if result.returncode != 0:
             raise SetupError("Fetching the pinned vcpkg source failed.")
-        result = run(["git", "-C", str(destination), "checkout", "--detach", "FETCH_HEAD"])
+        result = run(
+            ["git", "-C", str(destination), "checkout", "--detach", "FETCH_HEAD"]
+        )
         if result.returncode != 0:
             raise SetupError("Checking out the pinned vcpkg source failed.")
 
-    bootstrap = destination / ("bootstrap-vcpkg.bat" if system == "windows" else "bootstrap-vcpkg.sh")
-    command = [str(bootstrap), "-disableMetrics"] if system == "windows" else ["sh", str(bootstrap), "-disableMetrics"]
+    bootstrap = destination / (
+        "bootstrap-vcpkg.bat" if system == "windows" else "bootstrap-vcpkg.sh"
+    )
+    command = (
+        [str(bootstrap), "-disableMetrics"]
+        if system == "windows"
+        else ["sh", str(bootstrap), "-disableMetrics"]
+    )
     result = run(command, cwd=destination)
     executable = local_vcpkg_path(root, system)
     if result.returncode != 0 or not executable.is_file():
@@ -301,8 +371,12 @@ def install_vcpkg_dependencies(
     status = installed / "vcpkg" / "status"
     if offline:
         if not status.is_file():
-            raise SetupError("Native dependencies are missing and offline mode prevents installing them.")
-        print("Offline mode: using the existing native dependencies without reconciling the manifest.")
+            raise SetupError(
+                "Native dependencies are missing and offline mode prevents installing them."
+            )
+        print(
+            "Offline mode: using the existing native dependencies without reconciling the manifest."
+        )
         return
 
     triplet = "x64-windows" if system == "windows" else "x64-linux"
@@ -317,6 +391,7 @@ def install_vcpkg_dependencies(
         f"--x-manifest-root={root}",
         f"--x-install-root={installed}",
         f"--triplet={triplet}",
+        f"--overlay-triplets={root / 'Dependencies' / 'Triplets'}",
     ]
     result = run(command, cwd=root, environment=environment)
     if result.returncode != 0:
@@ -348,7 +423,9 @@ def build_info_path(root: Path) -> Path:
 def read_build_info(root: Path) -> dict[str, object]:
     document = build_info_path(root)
     if not document.is_file():
-        raise SetupError(f"'{document}' was not found. Run Scripts{os.sep}Setup.bat or sh Scripts/setup.sh once before generating build files.")
+        raise SetupError(
+            f"'{document}' was not found. Run Scripts{os.sep}Setup.bat or sh Scripts/setup.sh once before generating build files."
+        )
     try:
         recorded = json.loads(document.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -384,7 +461,9 @@ def build_info_document(
 def write_build_info(root: Path, **arguments: object) -> None:
     output = root / ".tools" / "build.json"
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(build_info_document(**arguments), indent=2) + "\n", encoding="utf-8")
+    output.write_text(
+        json.dumps(build_info_document(**arguments), indent=2) + "\n", encoding="utf-8"
+    )
 
 
 def choose_action(requested: str | None, system: str) -> str:
@@ -392,7 +471,9 @@ def choose_action(requested: str | None, system: str) -> str:
         if requested not in SUPPORTED_ACTIONS:
             raise SetupError(f"Unsupported action '{requested}'.")
         if system == "windows" and requested == "ninja":
-            raise SetupError("Windows supports the VS2022 and VS2026 actions. Ninja is supported on Linux.")
+            raise SetupError(
+                "Windows supports the VS2022 and VS2026 actions. Ninja is supported on Linux."
+            )
         if system == "linux" and requested != "ninja":
             raise SetupError("Linux currently supports the Ninja action.")
         return requested
@@ -413,7 +494,9 @@ def choose_action(requested: str | None, system: str) -> str:
         raise SetupError("Invalid generator selection.") from None
 
 
-def validate_environment(system: str, action: str, compiler: str) -> tuple[Path | None, Path]:
+def validate_environment(
+    system: str, action: str, compiler: str
+) -> tuple[Path | None, Path]:
     if system == "windows":
         vcvars, msbuild = find_windows_toolchain(action)
         if compiler == "clang":
@@ -426,14 +509,18 @@ def validate_environment(system: str, action: str, compiler: str) -> tuple[Path 
             if discovered_clang:
                 clang_candidates.append(Path(discovered_clang))
             if not any(candidate.is_file() for candidate in clang_candidates):
-                raise SetupError("The selected Visual Studio installation does not provide the Clang compiler toolset.")
+                raise SetupError(
+                    "The selected Visual Studio installation does not provide the Clang compiler toolset."
+                )
         return vcvars, msbuild
     elif not shutil.which("clang") or not shutil.which("clang++"):
         raise SetupError("Linux builds require clang and clang++ on PATH.")
     return None, Path("ninja")
 
 
-def generate(premake: Path, root: Path, action: str, compiler: str | None, vcpkg_root: Path) -> None:
+def generate(
+    premake: Path, root: Path, action: str, compiler: str | None, vcpkg_root: Path
+) -> None:
     command = [str(premake), action]
     if compiler:
         command.append(f"--cc={compiler}")
@@ -451,7 +538,9 @@ def write_compile_commands(root: Path, system: str) -> None:
     # auto-resolves the MSVC STL + Windows SDK; the build generators do not
     # emit a compile database, so clangd would otherwise have no include paths.
     triplet = "x64-windows" if system == "windows" else "x64-linux"
-    vcpkg_include = (root / "build" / "vcpkg_installed" / system / triplet / "include").as_posix()
+    vcpkg_include = (
+        root / "build" / "vcpkg_installed" / system / triplet / "include"
+    ).as_posix()
 
     library = (root / "NeuralNetwork" / "Source").as_posix()
     ui = (root / "NeuralNetworkUI" / "Source").as_posix()
@@ -473,10 +562,16 @@ def write_compile_commands(root: Path, system: str) -> None:
         for source_root in source_roots:
             for source in sorted(source_root.rglob("*.cpp")):
                 entries.append(
-                    {"directory": root.as_posix(), "file": source.as_posix(), "arguments": prefix + [compile_flag, source.as_posix()]}
+                    {
+                        "directory": root.as_posix(),
+                        "file": source.as_posix(),
+                        "arguments": prefix + [compile_flag, source.as_posix()],
+                    }
                 )
 
-    (root / "compile_commands.json").write_text(json.dumps(entries, indent=1) + "\n", encoding="utf-8")
+    (root / "compile_commands.json").write_text(
+        json.dumps(entries, indent=1) + "\n", encoding="utf-8"
+    )
     print(f"Wrote compile_commands.json ({len(entries)} translation units)")
 
 
@@ -487,14 +582,20 @@ def generate_only(root: Path, system: str, arguments: argparse.Namespace) -> Non
     requested = arguments.action or recorded.get("action")
     compiler = arguments.compiler or recorded.get("compiler")
     if not isinstance(requested, str) or not isinstance(compiler, str):
-        raise SetupError(f"'{build_info_path(root)}' does not record an action and compiler. Rerun setup.")
+        raise SetupError(
+            f"'{build_info_path(root)}' does not record an action and compiler. Rerun setup."
+        )
     action = choose_action(requested, system)
 
     premake = recorded_path(recorded.get("premake"))
-    if not premake or not parse_premake_version(executable_version(premake, ["--version"]) or ""):
+    if not premake or not parse_premake_version(
+        executable_version(premake, ["--version"]) or ""
+    ):
         premake = find_premake(root, system)
     if not premake:
-        raise SetupError(f"Premake {PREMAKE_VERSION} was not found. Rerun setup to provision it.")
+        raise SetupError(
+            f"Premake {PREMAKE_VERSION} was not found. Rerun setup to provision it."
+        )
     print(f"Using Premake {PREMAKE_VERSION}: {premake}")
 
     vcpkg_root = recorded_path(recorded.get("vcpkgRoot"))
@@ -507,7 +608,11 @@ def generate_only(root: Path, system: str, arguments: argparse.Namespace) -> Non
     generate(premake, root, action, compiler, vcpkg_root)
     write_compile_commands(root, system)
 
-    if action != recorded.get("action") or compiler != recorded.get("compiler") or str(premake.resolve()) != recorded.get("premake"):
+    if (
+        action != recorded.get("action")
+        or compiler != recorded.get("compiler")
+        or str(premake.resolve()) != recorded.get("premake")
+    ):
         if system == "windows":
             vcvars, build_tool = find_windows_toolchain(action)
         else:
@@ -525,18 +630,32 @@ def generate_only(root: Path, system: str, arguments: argparse.Namespace) -> Non
 
 
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Provision NeuralNetwork build tools and generate native build files.")
+    parser = argparse.ArgumentParser(
+        description="Provision NeuralNetwork build tools and generate native build files."
+    )
     parser.add_argument("--action", choices=SUPPORTED_ACTIONS)
     parser.add_argument("--compiler", choices=("msc", "clang"))
-    parser.add_argument("--yes", action="store_true", help="Approve downloading missing Premake or vcpkg without prompting.")
-    parser.add_argument("--offline", action="store_true", help="Do not access the network.")
-    parser.add_argument("--no-generate", action="store_true", help="Provision and validate tools without running Premake.")
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Approve downloading missing Premake or vcpkg without prompting.",
+    )
+    parser.add_argument(
+        "--offline", action="store_true", help="Do not access the network."
+    )
+    parser.add_argument(
+        "--no-generate",
+        action="store_true",
+        help="Provision and validate tools without running Premake.",
+    )
     parser.add_argument(
         "--generate-only",
         action="store_true",
         help="Only run Premake, reusing the action, compiler and tools recorded by the last setup.",
     )
-    parser.add_argument("--skip-dependencies", action="store_true", help="Do not run vcpkg install.")
+    parser.add_argument(
+        "--skip-dependencies", action="store_true", help="Do not run vcpkg install."
+    )
     return parser.parse_args()
 
 
@@ -547,7 +666,9 @@ def main() -> int:
     try:
         if arguments.generate_only:
             if arguments.no_generate:
-                raise SetupError("--generate-only and --no-generate cannot be combined.")
+                raise SetupError(
+                    "--generate-only and --no-generate cannot be combined."
+                )
             generate_only(root, system, arguments)
             return 0
         action = choose_action(arguments.action, system)
@@ -555,7 +676,9 @@ def main() -> int:
         vcvars, default_build_tool = validate_environment(system, action, compiler)
         premake = find_premake(root, system)
         if not premake:
-            premake = build_premake(root, system, action, arguments.yes, arguments.offline)
+            premake = build_premake(
+                root, system, action, arguments.yes, arguments.offline
+            )
         print(f"Using Premake {PREMAKE_VERSION}: {premake}")
         vcpkg = find_vcpkg(root, system)
         if not vcpkg:
@@ -563,12 +686,16 @@ def main() -> int:
         vcpkg_executable, vcpkg_root = vcpkg
         print(f"Using vcpkg: {vcpkg_executable}")
         if not arguments.skip_dependencies:
-            install_vcpkg_dependencies(vcpkg_executable, vcpkg_root, root, system, arguments.offline, vcvars)
+            install_vcpkg_dependencies(
+                vcpkg_executable, vcpkg_root, root, system, arguments.offline, vcvars
+            )
         build_tool = default_build_tool
         if action == "ninja":
             build_tool = find_ninja(root)
             if not build_tool:
-                raise SetupError(f"Ninja {NINJA_MINIMUM_VERSION[0]}.{NINJA_MINIMUM_VERSION[1]} or newer was not found.")
+                raise SetupError(
+                    f"Ninja {NINJA_MINIMUM_VERSION[0]}.{NINJA_MINIMUM_VERSION[1]} or newer was not found."
+                )
         if not arguments.no_generate:
             generate(premake, root, action, compiler, vcpkg_root)
             write_compile_commands(root, system)

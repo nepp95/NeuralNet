@@ -1,19 +1,6 @@
-#include <algorithm>
-#include <array>
-#include <cmath>
-#include <cstdint>
-#include <filesystem>
-#include <functional>
-#include <iostream>
-#include <map>
-#include <memory>
-#include <numeric>
-#include <span>
-#include <string>
-#include <unordered_map>
-#include <utility>
-#include <vector>
+#pragma once
 
-#include <tracy/Tracy.hpp>
+#include <EppoCore/pch.h>
 
-#include "Utility/Log.h"
+#include <imgui.h>
+#include <implot.h>

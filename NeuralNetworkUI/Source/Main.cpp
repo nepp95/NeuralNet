@@ -1,17 +1,25 @@
 #include "pch.h"
+#include "NeuralNetworkLayer.h"
 
-#include "Application.h"
+#include <EppoCore/Core/Entrypoint.h>
 
-auto main() -> int
+class NeuralNetworkApp final : public Eppo::Application
 {
-    auto app = new NN::Application();
-
-    if (app->Init() == false || app->Run() == false)
+public:
+    explicit NeuralNetworkApp(Eppo::ApplicationSpecification specification)
+        : Application(std::move(specification))
     {
-        delete app;
-        return 1;
+        PushLayer(std::make_shared<NN::NeuralNetworkLayer>());
     }
+};
 
-    delete app;
-    return 0;
+Eppo::Application* Eppo::CreateApplication(Eppo::ApplicationCommandLineArgs args)
+{
+    Eppo::ApplicationSpecification specification;
+    specification.Title = "NeuralNetwork";
+    specification.Width = 1280;
+    specification.Height = 720;
+    specification.CommandLineArgs = args;
+
+    return new NeuralNetworkApp(std::move(specification));
 }
