@@ -10,6 +10,8 @@ namespace NN
     Network::Network(const NetworkParams& params, Device& device)
         : m_Params(params), m_Device(device)
     {
+        ZoneScoped;
+
         // Create weights
         size_t weightCount = 0;
 
@@ -90,6 +92,8 @@ namespace NN
 
     auto Network::UploadDataset(std::span<const float> inputs, std::span<const float> targets) -> void
     {
+        ZoneScoped;
+
         m_SampleCount = static_cast<uint32_t>(inputs.size()) / m_Params.InputCount;
 
         // Upload inputs
@@ -121,189 +125,210 @@ namespace NN
         m_GPUTargets->Upload(targets.data(), targets.size() * sizeof(float));
     }
 
-    auto Network::Train() -> void
+    auto Network::Train(const uint32_t epochs) -> void
     {
+        ZoneScoped;
+
         // Dispatch forward
         CommandList cmd(m_Device, QueueType::Compute);
+
         const uint32_t groupSize = m_ForwardPipeline->GetLocalSize()[0];
 
-        for (uint32_t batchStart = 0; batchStart < m_SampleCount; batchStart += m_Params.BatchSize)
+        for (uint32_t epoch = 0; epoch < epochs; epoch++)
         {
-            const uint32_t batchCount = std::min(m_Params.BatchSize, m_SampleCount - batchStart);
-
-            cmd.Bind(*m_ForwardPipeline);
-            cmd.Bind(1, *m_GPUWeights);
-            cmd.Bind(2, *m_GPUBiases);
-            cmd.Bind(3, *m_GPUActivations);
-
-            const GpuBuffer* layerInput = m_GPUInputs.get();
-            uint32_t inputCount = m_Params.InputCount;
-            uint32_t inputOffset = batchStart * m_Params.InputCount;
-            uint32_t weightOffset = 0;
-            uint32_t biasOffset = 0;
-            uint32_t inputStride = m_Params.InputCount;
-
-            // Forward
-            for (size_t l = 0; l <= m_Params.Layers.size(); l++)
+            for (uint32_t batchStart = 0; batchStart < m_SampleCount; batchStart += m_Params.BatchSize)
             {
-                const bool isOutput = l == m_Params.Layers.size();
-                const uint32_t outputCount = isOutput ? m_Params.OutputCount : m_Params.Layers[l].NeuronCount;
-                const auto activation = isOutput ? ActivationType::Sigmoid : m_Params.Layers[l].Activation;
+                const uint32_t batchCount = std::min(m_Params.BatchSize, m_SampleCount - batchStart);
 
-                struct ForwardPushConstants
+                cmd.Bind(*m_ForwardPipeline);
+                cmd.Bind(1, *m_GPUWeights);
+                cmd.Bind(2, *m_GPUBiases);
+                cmd.Bind(3, *m_GPUActivations);
+
+                const GpuBuffer* layerInput = m_GPUInputs.get();
+                uint32_t inputCount = m_Params.InputCount;
+                uint32_t inputOffset = batchStart * m_Params.InputCount;
+                uint32_t weightOffset = 0;
+                uint32_t biasOffset = 0;
+                uint32_t inputStride = m_Params.InputCount;
+
+                // Forward
+                for (size_t l = 0; l <= m_Params.Layers.size(); l++)
+                {
+                    EP_GPU_ZONE(cmd, "Forward");
+
+                    const bool isOutput = l == m_Params.Layers.size();
+                    const uint32_t outputCount = isOutput ? m_Params.OutputCount : m_Params.Layers[l].NeuronCount;
+                    const auto activation = isOutput ? ActivationType::Sigmoid : m_Params.Layers[l].Activation;
+
+                    struct ForwardPushConstants
+                    {
+                        uint32_t InputCount;
+                        uint32_t OutputCount;
+                        uint32_t InputOffset;
+                        uint32_t WeightOffset;
+                        uint32_t BiasOffset;
+                        uint32_t InputStride;
+                        uint32_t ActivationStride;
+                        uint32_t ActivationType;
+                    } pushConstants;
+
+                    pushConstants.InputCount = inputCount;
+                    pushConstants.OutputCount = outputCount;
+                    pushConstants.InputOffset = inputOffset;
+                    pushConstants.WeightOffset = weightOffset;
+                    pushConstants.BiasOffset = biasOffset;
+                    pushConstants.InputStride = inputStride;
+                    pushConstants.ActivationStride = m_ActivationStride;
+                    pushConstants.ActivationType = static_cast<uint32_t>(activation);
+
+                    cmd.PushConstants(pushConstants);
+                    cmd.Bind(0, *layerInput);
+                    cmd.Dispatch((outputCount + groupSize - 1) / groupSize, batchCount);
+                    cmd.Barrier(*m_GPUActivations, Access::ComputeWrite, Access::ComputeRead);
+
+                    inputOffset = biasOffset;
+                    weightOffset += inputCount * outputCount;
+                    biasOffset += outputCount;
+                    inputCount = outputCount;
+                    inputStride = m_ActivationStride;
+                    layerInput = m_GPUActivations.get();
+                }
+
+                // Backward
+                {
+                    EP_GPU_ZONE(cmd, "Backward");
+                    struct BackwardPushConstants
+                    {
+                        uint32_t OutputCount;
+                        uint32_t OutputOffset;
+                        uint32_t ActivationStride;
+                        uint32_t TargetOffset;
+                    } pushConstants;
+
+                    pushConstants.OutputCount = m_Params.OutputCount;
+                    pushConstants.OutputOffset = m_ActivationStride - m_Params.OutputCount;
+                    pushConstants.ActivationStride = m_ActivationStride;
+                    pushConstants.TargetOffset = batchStart * m_Params.OutputCount;
+
+                    cmd.Bind(*m_BackwardPipeline);
+                    cmd.Bind(0, *m_GPUActivations);
+                    cmd.Bind(1, *m_GPUTargets);
+                    cmd.Bind(2, *m_GPUDeltas);
+                    cmd.PushConstants(pushConstants);
+                    cmd.Dispatch((m_Params.OutputCount + groupSize - 1) / groupSize, batchCount);
+                    cmd.Barrier(*m_GPUDeltas, Access::ComputeWrite, Access::ComputeRead);
+                }
+
+                // Hidden deltas
+                struct HiddenDeltaPushConstants
+                {
+                    uint32_t NeuronCount;
+                    uint32_t NextCount;
+                    uint32_t NeuronOffset;
+                    uint32_t NextWeightOffset;
+                    uint32_t ActivationStride;
+                } pushConstants2;
+
+                cmd.Bind(*m_HiddenDeltaPipeline);
+                cmd.Bind(0, *m_GPUActivations);
+                cmd.Bind(1, *m_GPUWeights);
+                cmd.Bind(2, *m_GPUDeltas);
+
+                uint32_t nextCount = m_Params.OutputCount;
+                uint32_t nextOffset = m_ActivationStride - m_Params.OutputCount;
+                uint32_t nextWeightOffset = weightOffset;
+
+                for (size_t l = m_Params.Layers.size(); l-- > 0;)
+                {
+                    EP_GPU_ZONE(cmd, "Hidden Delta");
+
+                    const uint32_t neuronCount = m_Params.Layers[l].NeuronCount;
+                    nextWeightOffset -= nextCount * neuronCount;
+
+                    pushConstants2.NeuronCount = neuronCount;
+                    pushConstants2.NextCount = nextCount;
+                    pushConstants2.NeuronOffset = nextOffset - neuronCount;
+                    pushConstants2.NextWeightOffset = nextWeightOffset;
+                    pushConstants2.ActivationStride = m_ActivationStride;
+
+                    cmd.PushConstants(pushConstants2);
+                    cmd.Dispatch((neuronCount + groupSize - 1) / groupSize, batchCount);
+                    cmd.Barrier(*m_GPUDeltas, Access::ComputeWrite, Access::ComputeRead);
+
+                    nextCount = neuronCount;
+                    nextOffset -= neuronCount;
+                }
+
+                // Update weights and biases
+                struct UpdatePushConstants
                 {
                     uint32_t InputCount;
                     uint32_t OutputCount;
                     uint32_t InputOffset;
+                    uint32_t InputStride;
                     uint32_t WeightOffset;
                     uint32_t BiasOffset;
-                    uint32_t InputStride;
                     uint32_t ActivationStride;
-                    uint32_t ActivationType;
-                } pushConstants;
+                    uint32_t BatchCount;
+                    float LearningRate;
+                } pushConstants3;
 
-                pushConstants.InputCount = inputCount;
-                pushConstants.OutputCount = outputCount;
-                pushConstants.InputOffset = inputOffset;
-                pushConstants.WeightOffset = weightOffset;
-                pushConstants.BiasOffset = biasOffset;
-                pushConstants.InputStride = inputStride;
-                pushConstants.ActivationStride = m_ActivationStride;
-                pushConstants.ActivationType = static_cast<uint32_t>(activation);
+                cmd.Bind(*m_UpdatePipeline);
+                cmd.Bind(1, *m_GPUDeltas);
+                cmd.Bind(2, *m_GPUWeights);
+                cmd.Bind(3, *m_GPUBiases);
 
-                cmd.PushConstants(pushConstants);
-                cmd.Bind(0, *layerInput);
-                cmd.Dispatch((outputCount + groupSize - 1) / groupSize, batchCount);
-                cmd.Barrier(*m_GPUActivations, Access::ComputeWrite, Access::ComputeRead);
+                inputCount = m_Params.InputCount;
+                inputOffset = batchStart * m_Params.InputCount;
+                inputStride = m_Params.InputCount;
+                weightOffset = 0;
+                biasOffset = 0;
+                layerInput = m_GPUInputs.get();
 
-                inputOffset = biasOffset;
-                weightOffset += inputCount * outputCount;
-                biasOffset += outputCount;
-                inputCount = outputCount;
-                inputStride = m_ActivationStride;
-                layerInput = m_GPUActivations.get();
+                for (size_t l = 0; l <= m_Params.Layers.size(); l++)
+                {
+                    EP_GPU_ZONE(cmd, "Update");
+
+                    const bool isOutput = l == m_Params.Layers.size();
+                    const uint32_t outputCount = isOutput ? m_Params.OutputCount : m_Params.Layers[l].NeuronCount;
+
+                    pushConstants3.InputCount = inputCount;
+                    pushConstants3.OutputCount = outputCount;
+                    pushConstants3.InputOffset = inputOffset;
+                    pushConstants3.InputStride = inputStride;
+                    pushConstants3.WeightOffset = weightOffset;
+                    pushConstants3.BiasOffset = biasOffset;
+                    pushConstants3.ActivationStride = m_ActivationStride;
+                    pushConstants3.BatchCount = batchCount;
+                    pushConstants3.LearningRate = m_Params.LearningConstant;
+
+                    cmd.PushConstants(pushConstants3);
+                    cmd.Bind(0, *layerInput);
+                    cmd.Dispatch((outputCount + groupSize - 1) / groupSize, inputCount + 1);
+
+                    inputOffset = biasOffset;
+                    weightOffset += inputCount * outputCount;
+                    biasOffset += outputCount;
+                    inputCount = outputCount;
+                    inputStride = m_ActivationStride;
+                    layerInput = m_GPUActivations.get();
+                }
+
+                cmd.Barrier(Access::ComputeWrite, Access::ComputeRead);
             }
-
-            // Backward
-            struct BackwardPushConstants
-            {
-                uint32_t OutputCount;
-                uint32_t OutputOffset;
-                uint32_t ActivationStride;
-                uint32_t TargetOffset;
-            } pushConstants;
-
-            pushConstants.OutputCount = m_Params.OutputCount;
-            pushConstants.OutputOffset = m_ActivationStride - m_Params.OutputCount;
-            pushConstants.ActivationStride = m_ActivationStride;
-            pushConstants.TargetOffset = batchStart * m_Params.OutputCount;
-
-            cmd.Bind(*m_BackwardPipeline);
-            cmd.Bind(0, *m_GPUActivations);
-            cmd.Bind(1, *m_GPUTargets);
-            cmd.Bind(2, *m_GPUDeltas);
-            cmd.PushConstants(pushConstants);
-            cmd.Dispatch((m_Params.OutputCount + groupSize - 1) / groupSize, batchCount);
-            cmd.Barrier(*m_GPUDeltas, Access::ComputeWrite, Access::ComputeRead);
-
-            // Hidden deltas
-            struct HiddenDeltaPushConstants
-            {
-                uint32_t NeuronCount;
-                uint32_t NextCount;
-                uint32_t NeuronOffset;
-                uint32_t NextWeightOffset;
-                uint32_t ActivationStride;
-            } pushConstants2;
-
-            cmd.Bind(*m_HiddenDeltaPipeline);
-            cmd.Bind(0, *m_GPUActivations);
-            cmd.Bind(1, *m_GPUWeights);
-            cmd.Bind(2, *m_GPUDeltas);
-
-            uint32_t nextCount = m_Params.OutputCount;
-            uint32_t nextOffset = m_ActivationStride - m_Params.OutputCount;
-            uint32_t nextWeightOffset = weightOffset;
-
-            for (size_t l = m_Params.Layers.size(); l-- > 0;)
-            {
-                const uint32_t neuronCount = m_Params.Layers[l].NeuronCount;
-                nextWeightOffset -= nextCount * neuronCount;
-
-                pushConstants2.NeuronCount = neuronCount;
-                pushConstants2.NextCount = nextCount;
-                pushConstants2.NeuronOffset = nextOffset - neuronCount;
-                pushConstants2.NextWeightOffset = nextWeightOffset;
-                pushConstants2.ActivationStride = m_ActivationStride;
-
-                cmd.PushConstants(pushConstants2);
-                cmd.Dispatch((neuronCount + groupSize - 1) / groupSize, batchCount);
-                cmd.Barrier(*m_GPUDeltas, Access::ComputeWrite, Access::ComputeRead);
-
-                nextCount = neuronCount;
-                nextOffset -= neuronCount;
-            }
-
-            // Update weights and biases
-            struct UpdatePushConstants
-            {
-                uint32_t InputCount;
-                uint32_t OutputCount;
-                uint32_t InputOffset;
-                uint32_t InputStride;
-                uint32_t WeightOffset;
-                uint32_t BiasOffset;
-                uint32_t ActivationStride;
-                uint32_t BatchCount;
-                float LearningRate;
-            } pushConstants3;
-
-            cmd.Bind(*m_UpdatePipeline);
-            cmd.Bind(1, *m_GPUDeltas);
-            cmd.Bind(2, *m_GPUWeights);
-            cmd.Bind(3, *m_GPUBiases);
-
-            inputCount = m_Params.InputCount;
-            inputOffset = batchStart * m_Params.InputCount;
-            inputStride = m_Params.InputCount;
-            weightOffset = 0;
-            biasOffset = 0;
-            layerInput = m_GPUInputs.get();
-
-            for (size_t l = 0; l <= m_Params.Layers.size(); l++)
-            {
-                const bool isOutput = l == m_Params.Layers.size();
-                const uint32_t outputCount = isOutput ? m_Params.OutputCount : m_Params.Layers[l].NeuronCount;
-
-                pushConstants3.InputCount = inputCount;
-                pushConstants3.OutputCount = outputCount;
-                pushConstants3.InputOffset = inputOffset;
-                pushConstants3.InputStride = inputStride;
-                pushConstants3.WeightOffset = weightOffset;
-                pushConstants3.BiasOffset = biasOffset;
-                pushConstants3.ActivationStride = m_ActivationStride;
-                pushConstants3.BatchCount = batchCount;
-                pushConstants3.LearningRate = m_Params.LearningConstant;
-
-                cmd.PushConstants(pushConstants3);
-                cmd.Bind(0, *layerInput);
-                cmd.Dispatch((outputCount + groupSize - 1) / groupSize, inputCount + 1);
-
-                inputOffset = biasOffset;
-                weightOffset += inputCount * outputCount;
-                biasOffset += outputCount;
-                inputCount = outputCount;
-                inputStride = m_ActivationStride;
-                layerInput = m_GPUActivations.get();
-            }
-
-            cmd.Barrier(Access::ComputeWrite, Access::ComputeRead);
         }
-        m_Device.Submit(cmd).Wait();
+
+        {
+            ZoneScopedN("Submit and wait");
+            m_Device.Submit(cmd).Wait();
+        }
     }
 
     auto Network::Readback() -> std::vector<float>
     {
+        ZoneScoped;
+
         std::vector<float> activations(m_GPUActivations->GetSize() / sizeof(float));
         m_GPUActivations->Download(activations.data(), m_GPUActivations->GetSize());
 

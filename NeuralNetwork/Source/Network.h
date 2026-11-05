@@ -35,7 +35,7 @@ namespace NN
         ~Network() = default;
 
         auto UploadDataset(std::span<const float> inputs, std::span<const float> targets) -> void;
-        auto Train() -> void;
+        auto Train(uint32_t epochs) -> void;
         auto Readback() -> std::vector<float>;
 
     private:

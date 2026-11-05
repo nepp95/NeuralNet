@@ -29,12 +29,14 @@ namespace NN
 
     auto NeuralNetworkLayer::OnUpdate(const float timestep) -> void
     {
-        m_Network->Train();
+        m_Network->Train(300);
         m_Outputs = m_Network->Readback();
     }
 
     auto NeuralNetworkLayer::OnUIRender() -> void
     {
+        ZoneScoped;
+
         ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 
         ImGui::Begin("Settings");
