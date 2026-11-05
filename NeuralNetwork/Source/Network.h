@@ -12,7 +12,8 @@ namespace NN
     enum class ActivationType
     {
         Sigmoid,
-        Softmax, // output layer only
+        Softmax,
+        ReLU,
     };
 
     struct LayerParams

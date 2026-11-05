@@ -12,14 +12,19 @@ namespace NN
     {
         ZoneScoped;
 
-        // Create weights, Xavier init: uniform in +-sqrt(6 / (fanIn + fanOut)) per layer
+        // Create weights
         std::vector<float> scratchBuffer;
         uint32_t inputCount = m_Params.InputCount;
 
         for (size_t l = 0; l <= m_Params.Layers.size(); l++)
         {
             const uint32_t outputCount = l == m_Params.Layers.size() ? m_Params.OutputCount : m_Params.Layers[l].NeuronCount;
-            const float limit = glm::sqrt(6.0f / static_cast<float>(inputCount + outputCount));
+
+            float limit = 0.0f;
+            if (l < m_Params.Layers.size() && m_Params.Layers[l].Activation == ActivationType::ReLU)
+                limit = glm::sqrt(6.0f / static_cast<float>(inputCount));
+            else
+                limit = glm::sqrt(6.0f / static_cast<float>(inputCount + outputCount));
 
             for (size_t i = 0; i < static_cast<size_t>(inputCount) * outputCount; i++)
                 scratchBuffer.push_back(Random::Float(-limit, limit));
@@ -208,6 +213,7 @@ namespace NN
                     uint32_t NeuronOffset;
                     uint32_t NextWeightOffset;
                     uint32_t ActivationStride;
+                    uint32_t ActivationType;
                 } pushConstants2;
 
                 cmd.Bind(*m_HiddenDeltaPipeline);
@@ -231,6 +237,7 @@ namespace NN
                     pushConstants2.NeuronOffset = nextOffset - neuronCount;
                     pushConstants2.NextWeightOffset = nextWeightOffset;
                     pushConstants2.ActivationStride = m_ActivationStride;
+                    pushConstants2.ActivationType = static_cast<uint32_t>(m_Params.Layers[l].Activation);
 
                     cmd.PushConstants(pushConstants2);
                     cmd.Dispatch((neuronCount + groupSize - 1) / groupSize, batchCount);

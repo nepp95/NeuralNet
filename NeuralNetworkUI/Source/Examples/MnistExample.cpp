@@ -40,8 +40,12 @@ namespace NN
             .BatchSize = 64,
             .InputCount = m_Dataset.InputCount,
             .OutputCount = m_Dataset.OutputCount,
+            .LearningConstant = 0.1f,
             .OutputActivation = ActivationType::Softmax,
-            .Layers = { { .NeuronCount = 1024 } },
+            .Layers = { {
+                .NeuronCount = 1024,
+                .Activation = ActivationType::ReLU,
+            } },
         };
 
         m_Network = std::make_unique<Network>(params, Application::Get().GetDevice());
