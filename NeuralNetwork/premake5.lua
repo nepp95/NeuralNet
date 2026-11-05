@@ -19,32 +19,14 @@ project "NeuralNetwork"
     includedirs
     {
         "Source",
-        Dependencies.IncludeDirectories.Glad,
-        Dependencies.IncludeDirectories.Implot,
-        Dependencies.IncludeDirectories.Library,
-        Dependencies.IncludeDirectories.Stb,
         Dependencies.IncludeDirectories.Tracy,
         Dependencies.IncludeDirectories.Vcpkg,
+        Dependencies.IncludeDirectories.VulkanSDK,
     }
 
-    defines {
+    defines
+    {
+        "EP_GUI",
         "TRACY_ENABLE",
-        "TRACY_ON_DEMAND"
+        "TRACY_ON_DEMAND",
     }
-
-    links {
-        "glad",
-        "implot"
-    }
-
-    filter { "system:windows", "configurations:Debug" }
-        libdirs (Dependencies.LibraryDirectories.Debug)
-
-    filter { "system:windows", "configurations:not Debug" }
-        libdirs (Dependencies.LibraryDirectories.Release)
-
-    filter { "system:linux", "configurations:Debug" }
-        libdirs (Dependencies.LibraryDirectories.Debug)
-
-    filter { "system:linux", "configurations:not Debug" }
-        libdirs (Dependencies.LibraryDirectories.Release)

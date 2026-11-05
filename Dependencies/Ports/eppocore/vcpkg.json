@@ -1,0 +1,28 @@
+{
+  "name": "eppocore",
+  "version": "1.0.0",
+  "description": "Vulkan application core: GPU resources, window, swapchain and ImGui layer",
+  "homepage": "https://github.com/nepp95/EppoCore",
+  "dependencies": [
+    "glfw3",
+    "glm",
+    {
+      "name": "imgui",
+      "features": [
+        "docking-experimental",
+        "glfw-binding"
+      ]
+    },
+    "spdlog",
+    {
+      "name": "tracy",
+      "features": [
+        "on-demand"
+      ]
+    },
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    }
+  ]
+}

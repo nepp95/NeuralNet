@@ -15,9 +15,11 @@ workspace "NeuralNetwork"
         optimize "Speed"
         symbols "On"
 
+    filter { "system:windows" }
+        buildoptions { "/utf-8" }
+
     filter {}
 
-    include "Vendor/glad"
     include "Vendor/implot"
     include "NeuralNetwork"
     include "NeuralNetworkUI"
