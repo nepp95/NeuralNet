@@ -8,8 +8,9 @@ namespace NN
     class NeuralNetworkLayer final : public Eppo::Layer
     {
     public:
-        NeuralNetworkLayer();
+        auto OnAttach() -> void override;
 
+        auto OnUpdate(float timestep) -> void override;
         auto OnUIRender() -> void override;
 
     private:
