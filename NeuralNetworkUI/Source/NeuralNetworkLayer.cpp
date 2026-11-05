@@ -72,6 +72,30 @@ namespace NN
         {
             case Example::Mnist:
             {
+                // Import Mnist dataset
+                MnistImporter importer(
+                    "NeuralNetwork/Assets/MnistChars/t10k-images.idx3-ubyte", "NeuralNetwork/Assets/MnistChars/t10k-labels.idx1-ubyte"
+                );
+
+                const auto dataset = importer.Import();
+                if (!dataset)
+                {
+                    Eppo::Log::Error("Failed to load dataset!");
+                    return;
+                }
+
+                // Create network
+                const NetworkParams params{
+                    .BatchSize = 64,
+                    .InputCount = dataset->InputCount,
+                    .OutputCount = dataset->OutputCount,
+                    .Layers = { { .NeuronCount = 256 } },
+                };
+
+                m_Network = std::make_unique<Network>(params, Application::Get().GetDevice());
+                m_Network->UploadDataset(dataset->Inputs, dataset->Targets);
+
+                break;
             }
 
             case Example::XOR:
@@ -97,6 +121,8 @@ namespace NN
 
                 m_Network = std::make_unique<Network>(params, Application::Get().GetDevice());
                 m_Network->UploadDataset(dataset->Inputs, dataset->Targets);
+
+                break;
             }
         }
     }
