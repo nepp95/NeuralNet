@@ -1,6 +1,7 @@
 #pragma once
 
-#include <NeuralNetwork.h>
+#include "Examples/ExampleBase.h"
+
 #include <EppoCore/Core/Layer.h>
 
 namespace NN
@@ -15,6 +16,7 @@ namespace NN
     {
     public:
         auto OnAttach() -> void override;
+        auto OnDetach() -> void override;
 
         auto OnUpdate(float timestep) -> void override;
         auto OnUIRender() -> void override;
@@ -23,8 +25,7 @@ namespace NN
         auto InitExample() -> void;
 
     private:
-        std::unique_ptr<Network> m_Network = nullptr;
-        std::vector<float> m_Outputs;
+        std::unique_ptr<ExampleBase> m_Example = nullptr;
 
         bool m_RunNetwork = false;
         Example m_SelectedExample = Example::XOR;

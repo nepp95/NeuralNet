@@ -1,24 +1,31 @@
 #include "pch.h"
 #include "NeuralNetworkLayer.h"
 
-#include <EppoCore/Core/Application.h>
+#include "Examples/MnistExample.h"
+#include "Examples/XORExample.h"
 
 namespace NN
 {
     auto NeuralNetworkLayer::OnAttach() -> void
     {
+        ImPlot::CreateContext();
         InitExample();
+    }
+
+    auto NeuralNetworkLayer::OnDetach() -> void
+    {
+        m_Example.reset();
+        ImPlot::DestroyContext();
     }
 
     auto NeuralNetworkLayer::OnUpdate(const float timestep) -> void
     {
-        if (!m_Network || !m_RunNetwork)
+        if (!m_Example || !m_RunNetwork)
             return;
 
         ZoneScoped;
 
-        m_Network->Train(300);
-        m_Outputs = m_Network->Readback();
+        m_Example->Train();
     }
 
     auto NeuralNetworkLayer::OnUIRender() -> void
@@ -56,8 +63,47 @@ namespace NN
                 m_RunNetwork = false;
         }
 
-        for (size_t i = 0; i < m_Outputs.size(); i++)
-            ImGui::Text("Sample %zu: %.3f", i, m_Outputs[i]);
+        if (m_Example)
+        {
+            int epochsPerStep = m_Example->GetEpochsPerStep();
+            if (ImGui::SliderInt("Epochs per step", &epochsPerStep, 1, 1000, "%d", ImGuiSliderFlags_Logarithmic))
+                m_Example->SetEpochsPerStep(epochsPerStep);
+
+            const auto& epochs = m_Example->GetEpochs();
+            if (!epochs.empty())
+            {
+                ImGui::Text("Epochs:   %.0f", epochs.back());
+                ImGui::Text("Accuracy: %.2f%%", m_Example->GetAccuracy().back() * 100.0f);
+                ImGui::Text("Loss:     %.6f", m_Example->GetLoss().back());
+            }
+        }
+
+        ImGui::End();
+
+        ImGui::Begin("Graph");
+
+        if (m_Example)
+        {
+            const auto& epochs = m_Example->GetEpochs();
+            const int count = static_cast<int>(epochs.size());
+
+            if (ImPlot::BeginPlot("Training"))
+            {
+                ImPlot::SetupAxes("Epoch", "Accuracy", ImPlotAxisFlags_AutoFit);
+                ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, 1.0, ImPlotCond_Always);
+                ImPlot::SetupAxis(ImAxis_Y2, "Loss", ImPlotAxisFlags_AutoFit);
+
+                ImPlot::SetAxes(ImAxis_X1, ImAxis_Y1);
+                ImPlot::PlotLine("Accuracy", epochs.data(), m_Example->GetAccuracy().data(), count);
+
+                ImPlot::SetAxes(ImAxis_X1, ImAxis_Y2);
+                ImPlot::PlotLine("Loss", epochs.data(), m_Example->GetLoss().data(), count);
+
+                ImPlot::EndPlot();
+            }
+
+            m_Example->OnUIRender();
+        }
 
         ImGui::End();
     }
@@ -65,65 +111,18 @@ namespace NN
     auto NeuralNetworkLayer::InitExample() -> void
     {
         m_RunNetwork = false;
-        m_Network.reset();
-        m_Outputs.clear();
+        m_Example.reset();
 
         switch (m_SelectedExample)
         {
             case Example::Mnist:
-            {
-                // Import Mnist dataset
-                MnistImporter importer(
-                    "NeuralNetwork/Assets/MnistChars/t10k-images.idx3-ubyte", "NeuralNetwork/Assets/MnistChars/t10k-labels.idx1-ubyte"
-                );
-
-                const auto dataset = importer.Import();
-                if (!dataset)
-                {
-                    Eppo::Log::Error("Failed to load dataset!");
-                    return;
-                }
-
-                // Create network
-                const NetworkParams params{
-                    .BatchSize = 64,
-                    .InputCount = dataset->InputCount,
-                    .OutputCount = dataset->OutputCount,
-                    .Layers = { { .NeuronCount = 256 } },
-                };
-
-                m_Network = std::make_unique<Network>(params, Application::Get().GetDevice());
-                m_Network->UploadDataset(dataset->Inputs, dataset->Targets);
-
+                m_Example = std::make_unique<MnistExample>();
                 break;
-            }
 
             case Example::XOR:
             default:
-            {
-                // Import XOR dataset
-                MemoryImporter importer(2, 1, { 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 1.0f, 0.0f });
-
-                const auto dataset = importer.Import();
-                if (!dataset)
-                {
-                    Eppo::Log::Error("Failed to load dataset!");
-                    return;
-                }
-
-                // Create network
-                const NetworkParams params{
-                    .BatchSize = 4,
-                    .InputCount = dataset->InputCount,
-                    .OutputCount = dataset->OutputCount,
-                    .Layers = { { .NeuronCount = 16 } },
-                };
-
-                m_Network = std::make_unique<Network>(params, Application::Get().GetDevice());
-                m_Network->UploadDataset(dataset->Inputs, dataset->Targets);
-
+                m_Example = std::make_unique<XORExample>();
                 break;
-            }
         }
     }
 }
