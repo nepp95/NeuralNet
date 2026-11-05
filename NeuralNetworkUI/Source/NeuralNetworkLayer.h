@@ -15,5 +15,6 @@ namespace NN
 
     private:
         std::unique_ptr<Network> m_Network = nullptr;
+        std::vector<float> m_Outputs;
     };
 }

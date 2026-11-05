@@ -27,4 +27,6 @@ project "NeuralNetwork"
     defines
     {
         "EP_GUI",
+        "TRACY_ENABLE",
+        "TRACY_ON_DEMAND",
     }

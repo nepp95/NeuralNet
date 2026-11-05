@@ -12,7 +12,7 @@ namespace NN
             .BatchSize = 4,
             .InputCount = 2,
             .OutputCount = 1,
-            .Layers = { { .NeuronCount = 2 } },
+            .Layers = { { .NeuronCount = 16 } },
         };
 
         m_Network = std::make_unique<Network>(params, Application::Get().GetDevice());
@@ -30,14 +30,18 @@ namespace NN
     auto NeuralNetworkLayer::OnUpdate(const float timestep) -> void
     {
         m_Network->Train();
+        m_Outputs = m_Network->Readback();
     }
 
     auto NeuralNetworkLayer::OnUIRender() -> void
     {
         ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 
-        if (ImGui::Begin("Settings"))
-            ImGui::Text("NeuralNetwork");
+        ImGui::Begin("Settings");
+        ImGui::Text("NeuralNetwork");
+
+        for (size_t i = 0; i < m_Outputs.size(); i++)
+            ImGui::Text("Sample %zu: %.3f", i, m_Outputs[i]);
 
         ImGui::End();
     }
