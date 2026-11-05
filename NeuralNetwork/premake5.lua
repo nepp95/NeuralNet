@@ -19,6 +19,9 @@ project "NeuralNetwork"
     includedirs
     {
         "Source",
+        Dependencies.IncludeDirectories.Tracy,
+        Dependencies.IncludeDirectories.Vcpkg,
+        Dependencies.IncludeDirectories.VulkanSDK,
     }
 
     defines
