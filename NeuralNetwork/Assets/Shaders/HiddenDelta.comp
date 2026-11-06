@@ -1,0 +1,47 @@
+#version 460 core
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 0) readonly buffer ActivationsBuffer { float activations[]; };
+layout(std430, binding = 1) readonly buffer WeightsBuffer { float weights[]; };
+layout(std430, binding = 2) buffer DeltasBuffer { float deltas[]; };
+
+layout(push_constant) uniform Params
+{
+	uint NeuronCount;
+	uint NextCount;
+	uint NeuronOffset;
+	uint NextWeightOffset;
+	uint ActivationStride;
+	uint ActivationType;
+} params;
+
+float Derivative(float a, uint type)
+{
+	switch (type)
+	{
+		case 0u: return a * (1.0 - a);
+		case 2u: return a > 0.0 ? 1.0 : 0.0;
+		default: return a * (1.0 - a);
+	}
+}
+
+void main()
+{
+	uint j = gl_GlobalInvocationID.x;
+	uint s = gl_GlobalInvocationID.y;
+	if (j >= params.NeuronCount)
+		return;
+
+	uint sampleBase = s * params.ActivationStride;
+	uint nextOffset = params.NeuronOffset + params.NeuronCount;
+
+	float sum = 0.0;
+	for (uint k = 0u; k < params.NextCount; k++)
+		sum += deltas[sampleBase + nextOffset + k] * weights[params.NextWeightOffset + k * params.NeuronCount + j];
+
+	uint index = sampleBase + params.NeuronOffset + j;
+	float a = activations[index];
+
+	deltas[index] = sum * Derivative(a, params.ActivationType);
+}
