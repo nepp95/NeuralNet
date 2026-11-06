@@ -138,14 +138,22 @@ namespace NN
         }
     }
 
-    auto Network::Evaluate() -> std::vector<float>
+    auto Network::Evaluate(std::span<const float> inputs) -> std::vector<float>
     {
         ZoneScoped;
 
-        // Evaluate runs the whole dataset at once, so activations need a row per sample
-        const uint32_t sampleCount = m_TestSampleCount > 0 ? m_TestSampleCount : m_SampleCount;
-        GpuBuffer& inputs = m_TestSampleCount > 0 ? *m_GPUTestInputs : *m_GPUInputs;
+        // Without inputs, evaluate the test set (or the training set if there is none)
+        uint32_t sampleCount = m_TestSampleCount > 0 ? m_TestSampleCount : m_SampleCount;
+        const GpuBuffer* evaluateInputs = m_TestSampleCount > 0 ? m_GPUTestInputs.get() : m_GPUInputs.get();
 
+        if (!inputs.empty())
+        {
+            sampleCount = static_cast<uint32_t>(inputs.size()) / m_Params.InputCount;
+            UploadBuffer(m_GPUEvaluateInputs, inputs, "Evaluate Inputs");
+            evaluateInputs = m_GPUEvaluateInputs.get();
+        }
+
+        // Evaluate runs all samples at once, so activations need a row per sample
         const size_t activationsSize = static_cast<size_t>(std::max(sampleCount, m_Params.BatchSize)) * m_ActivationStride * sizeof(float);
         if (m_GPUActivations->GetSize() < activationsSize)
         {
@@ -159,46 +167,7 @@ namespace NN
 
         // Forward
         CommandList cmd(m_Device, QueueType::Compute);
-        Forward(cmd, inputs, 0, sampleCount);
-        m_Device.Submit(cmd).Wait();
-
-        // Download activations
-        std::vector<float> activations(static_cast<size_t>(sampleCount) * m_ActivationStride);
-        m_GPUActivations->Download(activations.data(), activations.size() * sizeof(float));
-
-        std::vector<float> outputs;
-        const uint32_t outputOffset = m_ActivationStride - m_Params.OutputCount;
-
-        for (uint32_t s = 0; s < sampleCount; s++)
-        {
-            const auto start = activations.begin() + s * m_ActivationStride + outputOffset;
-            outputs.insert(outputs.end(), start, start + m_Params.OutputCount);
-        }
-
-        return outputs;
-    }
-
-    auto Network::Forward(std::span<const float> inputs) -> std::vector<float>
-    {
-        ZoneScoped;
-
-        // Forward runs all given inputs at once, so activations need a row per sample
-        const uint32_t sampleCount = static_cast<uint32_t>(inputs.size()) / m_Params.InputCount;
-        UploadBuffer(m_GPUForwardInputs, inputs, "Forward Inputs");
-
-        const size_t activationsSize = static_cast<size_t>(std::max(sampleCount, m_Params.BatchSize)) * m_ActivationStride * sizeof(float);
-        if (m_GPUActivations->GetSize() < activationsSize)
-        {
-            const GpuBufferSpecification spec{
-                .Size = activationsSize,
-                .DebugName = "Activations",
-            };
-
-            m_GPUActivations = std::make_unique<GpuBuffer>(m_Device, spec);
-        }
-
-        CommandList cmd(m_Device, QueueType::Compute);
-        Forward(cmd, *m_GPUForwardInputs, 0, sampleCount);
+        Forward(cmd, *evaluateInputs, 0, sampleCount);
         m_Device.Submit(cmd).Wait();
 
         // Download activations

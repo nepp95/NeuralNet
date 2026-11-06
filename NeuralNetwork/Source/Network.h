@@ -40,8 +40,7 @@ namespace NN
 
         auto UploadDataset(std::span<const float> inputs, std::span<const float> targets, bool trainingData = true) -> void;
         auto Train(uint32_t epochs) -> void;
-        auto Evaluate() -> std::vector<float>;
-        auto Forward(std::span<const float> inputs) -> std::vector<float>;
+        auto Evaluate(std::span<const float> inputs = {}) -> std::vector<float>;
 
     private:
         auto Forward(CommandList& cmd, const GpuBuffer& inputs, uint32_t sampleOffset, uint32_t sampleCount) -> void;
@@ -68,7 +67,7 @@ namespace NN
         std::unique_ptr<GpuBuffer> m_GPUTestInputs = nullptr;
         std::unique_ptr<GpuBuffer> m_GPUTargets = nullptr;
         std::unique_ptr<GpuBuffer> m_GPUTestTargets = nullptr;
-        std::unique_ptr<GpuBuffer> m_GPUForwardInputs = nullptr;
+        std::unique_ptr<GpuBuffer> m_GPUEvaluateInputs = nullptr;
         std::unique_ptr<GpuBuffer> m_GPUWeights = nullptr;
         std::unique_ptr<GpuBuffer> m_GPUBiases = nullptr;
         std::unique_ptr<GpuBuffer> m_GPUActivations = nullptr;
