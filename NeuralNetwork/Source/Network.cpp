@@ -188,6 +188,8 @@ namespace NN
 
     auto Network::Forward(CommandList& cmd, const GpuBuffer& inputs, const uint32_t sampleOffset, const uint32_t sampleCount) -> void
     {
+        ZoneScoped;
+
         cmd.Bind(*m_ForwardPipeline);
         cmd.Bind(1, *m_GPUWeights);
         cmd.Bind(2, *m_GPUBiases);
@@ -272,6 +274,8 @@ namespace NN
 
     auto Network::Backward(CommandList& cmd, const GpuBuffer& targets, const uint32_t sampleOffset, const uint32_t sampleCount) -> void
     {
+        ZoneScoped;
+
         const uint32_t groupSize = m_BackwardPipeline->GetLocalSize()[0];
 
         // Output deltas
@@ -345,6 +349,8 @@ namespace NN
 
     auto Network::Update(CommandList& cmd, const GpuBuffer& inputs, const uint32_t sampleOffset, const uint32_t sampleCount) -> void
     {
+        ZoneScoped;
+
         const uint32_t groupSize = m_UpdatePipeline->GetLocalSize()[0];
 
         struct UpdatePushConstants
@@ -406,6 +412,8 @@ namespace NN
 
     auto Network::UploadBuffer(std::unique_ptr<GpuBuffer>& buffer, std::span<const float> data, const std::string_view debugName) -> void
     {
+        ZoneScoped;
+
         const size_t size = data.size() * sizeof(float);
 
         if (!buffer || buffer->GetSize() < size)
