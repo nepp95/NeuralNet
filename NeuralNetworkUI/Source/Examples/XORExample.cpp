@@ -35,6 +35,8 @@ namespace NN
 
     auto XORExample::OnUIRender() -> void
     {
+        DatasetExample::OnUIRender();
+
         for (uint32_t s = 0; s < m_Dataset.SampleCount && s < m_Outputs.size(); s++)
         {
             ImGui::Text(

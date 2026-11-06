@@ -1,10 +1,10 @@
 #pragma once
 
-#include "Examples/ExampleBase.h"
+#include "Examples/DatasetExample.h"
 
 namespace NN
 {
-    class MnistExample final : public ExampleBase
+    class MnistExample final : public DatasetExample
     {
     public:
         MnistExample();

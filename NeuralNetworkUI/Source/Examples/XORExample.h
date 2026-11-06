@@ -1,10 +1,10 @@
 #pragma once
 
-#include "Examples/ExampleBase.h"
+#include "Examples/DatasetExample.h"
 
 namespace NN
 {
-    class XORExample final : public ExampleBase
+    class XORExample final : public DatasetExample
     {
     public:
         XORExample();

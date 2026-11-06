@@ -64,46 +64,14 @@ namespace NN
         }
 
         if (m_Example)
-        {
-            int epochsPerStep = m_Example->GetEpochsPerStep();
-            if (ImGui::SliderInt("Epochs per step", &epochsPerStep, 1, 1000, "%d", ImGuiSliderFlags_Logarithmic))
-                m_Example->SetEpochsPerStep(epochsPerStep);
-
-            const auto& epochs = m_Example->GetEpochs();
-            if (!epochs.empty())
-            {
-                ImGui::Text("Epochs:   %.0f", epochs.back());
-                ImGui::Text("Accuracy: %.2f%%", m_Example->GetAccuracy().back() * 100.0f);
-                ImGui::Text("Loss:     %.6f", m_Example->GetLoss().back());
-            }
-        }
+            m_Example->OnSettingsRender();
 
         ImGui::End();
 
         ImGui::Begin("Graph");
 
         if (m_Example)
-        {
-            const auto& epochs = m_Example->GetEpochs();
-            const int count = static_cast<int>(epochs.size());
-
-            if (ImPlot::BeginPlot("Training"))
-            {
-                ImPlot::SetupAxes("Epoch", "Accuracy", ImPlotAxisFlags_AutoFit);
-                ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, 1.0, ImPlotCond_Always);
-                ImPlot::SetupAxis(ImAxis_Y2, "Loss", ImPlotAxisFlags_AutoFit);
-
-                ImPlot::SetAxes(ImAxis_X1, ImAxis_Y1);
-                ImPlot::PlotLine("Accuracy", epochs.data(), m_Example->GetAccuracy().data(), count);
-
-                ImPlot::SetAxes(ImAxis_X1, ImAxis_Y2);
-                ImPlot::PlotLine("Loss", epochs.data(), m_Example->GetLoss().data(), count);
-
-                ImPlot::EndPlot();
-            }
-
             m_Example->OnUIRender();
-        }
 
         ImGui::End();
     }

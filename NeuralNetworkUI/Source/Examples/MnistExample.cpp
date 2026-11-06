@@ -55,6 +55,8 @@ namespace NN
 
     auto MnistExample::OnUIRender() -> void
     {
+        DatasetExample::OnUIRender();
+
         if (m_Outputs.empty())
             return;
 
