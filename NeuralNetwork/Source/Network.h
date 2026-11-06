@@ -39,25 +39,14 @@ namespace NN
         ~Network() = default;
 
         auto UploadDataset(std::span<const float> inputs, std::span<const float> targets, bool trainingData = true) -> void;
-
-        // Runs the uploaded training set through Forward, Backward and Update for the given number of epochs
         auto Train(uint32_t epochs) -> void;
-
-        // Forward pass over the uploaded test set (or the training set if none), returns SampleCount * OutputCount outputs
         auto Evaluate() -> std::vector<float>;
-
-        // Forward pass over arbitrary inputs (SampleCount * InputCount), returns SampleCount * OutputCount outputs
         auto Forward(std::span<const float> inputs) -> std::vector<float>;
 
     private:
-        // Recording steps, all operate on samples [sampleOffset, sampleOffset + sampleCount) of the given buffer
         auto Forward(CommandList& cmd, const GpuBuffer& inputs, uint32_t sampleOffset, uint32_t sampleCount) -> void;
         auto Backward(CommandList& cmd, const GpuBuffer& targets, uint32_t sampleOffset, uint32_t sampleCount) -> void;
         auto Update(CommandList& cmd, const GpuBuffer& inputs, uint32_t sampleOffset, uint32_t sampleCount) -> void;
-
-        // Submits a forward pass over the first sampleCount samples of inputs and reads back the outputs
-        auto ForwardAndRead(const GpuBuffer& inputs, uint32_t sampleCount) -> std::vector<float>;
-        auto ReserveActivations(uint32_t sampleCount) -> void;
         auto UploadBuffer(std::unique_ptr<GpuBuffer>& buffer, std::span<const float> data, std::string_view debugName) -> void;
 
     private:
