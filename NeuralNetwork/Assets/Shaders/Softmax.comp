@@ -1,0 +1,38 @@
+#version 460 core
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 0) buffer ActivationsBuffer { float activations[]; };
+
+layout(push_constant) uniform Params
+{
+	uint OutputCount;
+	uint OutputOffset;
+	uint ActivationStride;
+	uint SampleCount;
+} params;
+
+void main()
+{
+	uint s = gl_GlobalInvocationID.x;
+	if (s >= params.SampleCount)
+		return;
+
+	uint base = s * params.ActivationStride + params.OutputOffset;
+
+	// Subtract the max for numerical stability
+	float maxValue = activations[base];
+	for (uint j = 1u; j < params.OutputCount; j++)
+		maxValue = max(maxValue, activations[base + j]);
+
+	float sum = 0.0;
+	for (uint j = 0u; j < params.OutputCount; j++)
+	{
+		float e = exp(activations[base + j] - maxValue);
+		activations[base + j] = e;
+		sum += e;
+	}
+
+	for (uint j = 0u; j < params.OutputCount; j++)
+		activations[base + j] /= sum;
+}

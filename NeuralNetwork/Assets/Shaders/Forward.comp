@@ -1,0 +1,50 @@
+#version 460 core
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 0) readonly buffer InputsBuffer { float inputs[]; };
+layout(std430, binding = 1) readonly buffer WeightsBuffer { float weights[]; };
+layout(std430, binding = 2) readonly buffer BiasesBuffer { float biases[]; };
+layout(std430, binding = 3) writeonly buffer OutputsBuffer { float outputs[]; };
+
+layout(push_constant) uniform Layer
+{
+	uint InputCount;
+	uint OutputCount;
+	uint InputOffset;
+	uint WeightOffset;
+	uint BiasOffset;
+	uint InputStride;
+	uint ActivationStride;
+	uint ActivationType;
+} layer;
+
+float Activate(float x, uint type)
+{
+	switch (type)
+	{
+		case 0u: return 1.0 / (1.0 + exp(-x));
+		case 1u: return x;
+		case 2u: return max(x, 0.0);
+		default: return 1.0 / (1.0 + exp(-x));
+	}
+}
+
+void main()
+{
+	uint j = gl_GlobalInvocationID.x;
+	uint s = gl_GlobalInvocationID.y;
+	if (j >= layer.OutputCount)
+		return;
+
+	float sum = biases[layer.BiasOffset + j];
+	uint weightRow = layer.WeightOffset + j * layer.InputCount;
+	uint inputBase = layer.InputOffset + s * layer.InputStride;
+
+	for (uint i = 0u; i < layer.InputCount; i++)
+	{
+		sum += inputs[inputBase + i] * weights[weightRow + i];
+	}
+
+	outputs[s * layer.ActivationStride + layer.BiasOffset + j] = Activate(sum, layer.ActivationType);
+}

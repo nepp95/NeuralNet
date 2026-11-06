@@ -1,0 +1,46 @@
+#version 460 core
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 0) readonly buffer InputsBuffer { float inputs[]; };
+layout(std430, binding = 1) readonly buffer DeltasBuffer { float deltas[]; };
+layout(std430, binding = 2) buffer WeightsBuffer { float weights[]; };
+layout(std430, binding = 3) buffer BiasesBuffer { float biases[]; };
+
+layout(push_constant) uniform Params
+{
+    uint InputCount;
+    uint OutputCount;
+    uint InputOffset;
+    uint InputStride;
+    uint WeightOffset;
+    uint BiasOffset;
+    uint ActivationStride;
+    uint BatchCount;
+    float LearningRate;
+} params;
+
+void main()
+{
+    uint j = gl_GlobalInvocationID.x; // neuron in this layer
+    uint i = gl_GlobalInvocationID.y; // input, or the bias when i == InputCount
+    if (j >= params.OutputCount)
+        return;
+
+    bool isBias = i == params.InputCount;
+
+    float gradient = 0.0;
+    for (uint s = 0u; s < params.BatchCount; s++)
+    {
+        float delta = deltas[s * params.ActivationStride + params.BiasOffset + j];
+        float activation = isBias ? 1.0 : inputs[params.InputOffset + s * params.InputStride + i];
+        gradient += delta * activation;
+    }
+
+    gradient *= params.LearningRate / float(params.BatchCount);
+
+    if (isBias)
+        biases[params.BiasOffset + j] -= gradient;
+    else
+        weights[params.WeightOffset + j * params.InputCount + i] -= gradient;
+}
