@@ -10,5 +10,6 @@ namespace NN
         XORExample();
 
         auto OnUIRender() -> void override;
+        auto Train() -> void override;
     };
 }
