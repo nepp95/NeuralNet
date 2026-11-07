@@ -31,8 +31,9 @@ jobs:
           - name: Windows (vs2026, MSVC)
             os: windows-2025-vs2026
             action: vs2026
-            # Debug links the d-suffixed shaderc/spirv-cross libs, which ship in the SDK's debug component
-            vulkan-components: com.lunarg.vulkan.debug
+            # Same optional components as a working local install: debug provides the d-suffixed shaderc/spirv-cross
+            # libs that Debug links, vma provides vma/vk_mem_alloc.h for EppoCore. The Linux tarball has no components.
+            vulkan-components: com.lunarg.vulkan.debug,com.lunarg.vulkan.vma
           - name: Linux (ninja, clang)
             os: ubuntu-24.04
             action: ninja
@@ -71,6 +72,22 @@ jobs:
           optional_components: ${{ matrix.vulkan-components }}
           install_runtime: false
           cache: true
+
+      # Everything EppoCore and NeuralNetworkUI take from the SDK. Fails here with a clear list instead of deep inside
+      # the EppoCore build or the final link.
+      - name: Check Vulkan SDK contents
+        run: |
+          $sdk = $env:VULKAN_SDK
+          $headers = 'vulkan/vulkan.h', 'vulkan/vk_enum_string_helper.h', 'vma/vk_mem_alloc.h', 'shaderc/shaderc.hpp', 'spirv_cross/spirv_cross.hpp'
+          if ($IsWindows) {
+            $required = ($headers | ForEach-Object { "Include/$_" }) + (
+              'vulkan-1', 'shaderc_combined', 'shaderc_combinedd', 'spirv-cross-core', 'spirv-cross-cored' | ForEach-Object { "Lib/$_.lib" })
+          } else {
+            $required = ($headers | ForEach-Object { "include/$_" }) + 'lib/libvulkan.so', 'lib/libshaderc_combined.a', 'lib/libspirv-cross-core.a'
+          }
+          $missing = @($required | Where-Object { -not (Test-Path (Join-Path $sdk $_)) })
+          if ($missing.Count) { throw "Vulkan SDK at $sdk is missing:`n  $($missing -join "`n  ")" }
+          "Vulkan SDK at $sdk has all $($required.Count) required files"
 
       # Setup.py would otherwise pick up the runner's preinstalled vcpkg from PATH. A short root under
       # RUNNER_TEMP also keeps Windows buildtrees clear of MAX_PATH.

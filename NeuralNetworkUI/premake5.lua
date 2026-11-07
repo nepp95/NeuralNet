@@ -4,6 +4,11 @@ project "NeuralNetworkUI"
     cppdialect "C++20"
     staticruntime "off"
 
+    -- See NeuralNetwork/premake5.lua: the ninja module needs the project location at the workspace root for pch paths
+    if _ACTION == "ninja" then
+        location (Root)
+    end
+
     debugdir "%{wks.location}"
     targetdir ("%{wks.location}/build/bin/" .. OutputDir .. "/%{prj.name}")
     objdir ("%{wks.location}/build/obj/" .. OutputDir .. "/%{prj.name}")
@@ -97,20 +102,24 @@ project "NeuralNetworkUI"
             '{COPY} "' .. Dependencies.RuntimeDirectories.Release .. '/TracyClient.dll" "%{cfg.targetdir}"',
         }
 
+    -- Static archives: GNU ld resolves left to right, so each library comes before the ones it uses (imgui's GLFW
+    -- backend needs glfw3 after it). Debug names match Windows: imgui/spdlog/fmt add a "d" postfix and Tracy installs
+    -- into debug/lib/Debug on every platform.
     filter { "system:linux", "configurations:Debug" }
         libdirs
         {
             Dependencies.LibraryDirectories.Debug,
+            Dependencies.LibraryDirectories.DebugTracy,
             Dependencies.LibraryDirectories.VulkanSDK,
         }
 
         links
         {
             "EppoCore_GUI",
+            "imguid",
             "glfw3",
-            "imgui",
-            "spdlog",
-            "fmt",
+            "spdlogd",
+            "fmtd",
             "TracyClient",
             "vulkan",
             "shaderc_combined",
@@ -127,8 +136,8 @@ project "NeuralNetworkUI"
         links
         {
             "EppoCore_GUI",
-            "glfw3",
             "imgui",
+            "glfw3",
             "spdlog",
             "fmt",
             "TracyClient",
