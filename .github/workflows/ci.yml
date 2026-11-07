@@ -1,0 +1,36 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: windows-2025-vs2026
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
+    env:
+      VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}\.vcpkg-cache,readwrite
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: jakoch/install-vulkan-sdk-action@v1
+        with:
+          vulkan_version: 1.4.335.0
+          optional_components: com.lunarg.vulkan.debug,com.lunarg.vulkan.vma
+          install_runtime: false
+
+      - uses: actions/cache@v4
+        with:
+          path: .vcpkg-cache
+          key: vcpkg-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'Dependencies/**') }}
+
+      - name: Setup
+        run: |
+          New-Item -ItemType Directory -Force .vcpkg-cache | Out-Null
+          python Scripts/Setup.py --action vs2026 --yes
+
+      - name: Build
+        run: |
+          $msbuild = (Get-Content .tools/build.json | ConvertFrom-Json).buildTool
+          & $msbuild NeuralNetwork.slnx /m /p:Configuration=${{ matrix.configuration }} /p:Platform=x64
