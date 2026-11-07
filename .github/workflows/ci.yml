@@ -3,44 +3,24 @@ name: CI
 on:
   push:
     branches: [master]
-    paths-ignore: ["**.md", "imgui.ini"]
   pull_request:
-    paths-ignore: ["**.md", "imgui.ini"]
-  workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
-
-env:
-  # Keep in sync with the SDK used locally (CLAUDE.md: Vulkan SDK 1.4.x)
-  VULKAN_SDK_VERSION: 1.4.335.0
-  VCPKG_DISABLE_METRICS: 1
 
 jobs:
   build:
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Windows (vs2026, MSVC)
-            os: windows-2025-vs2026
+          - os: windows-2025-vs2026
             action: vs2026
-            # Same optional components as a working local install: debug provides the d-suffixed shaderc/spirv-cross
-            # libs that Debug links, vma provides vma/vk_mem_alloc.h for EppoCore. The Linux tarball has no components.
-            vulkan-components: com.lunarg.vulkan.debug,com.lunarg.vulkan.vma
-          - name: Linux (ninja, clang)
-            os: ubuntu-24.04
+          - os: ubuntu-24.04
             action: ninja
-            vulkan-components: ""
+    runs-on: ${{ matrix.os }}
+    env:
+      VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite
     defaults:
       run:
-        shell: pwsh
+        shell: bash
 
     steps:
       - uses: actions/checkout@v5
@@ -51,97 +31,33 @@ jobs:
 
       - name: Install Linux packages
         if: runner.os == 'Linux'
-        shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            clang ninja-build pkg-config uuid-dev \
-            xorg-dev libxinerama-dev libxcursor-dev libglu1-mesa-dev \
-            libwayland-dev libxkbcommon-dev wayland-protocols
+          sudo apt-get install -y clang ninja-build pkg-config xorg-dev libglu1-mesa-dev libwayland-dev libxkbcommon-dev wayland-protocols
 
-      # Pins live in Scripts/Setup.py; read them so CI never disagrees with local setup
-      - name: Read pinned tool versions
-        id: pins
-        run: |
-          python -c "import sys; sys.path.insert(0, 'Scripts'); import Setup; print(f'vcpkg-commit={Setup.VCPKG_COMMIT}'); print(f'premake-version={Setup.PREMAKE_VERSION}')" >> $env:GITHUB_OUTPUT
-
-      - name: Install Vulkan SDK
-        uses: jakoch/install-vulkan-sdk-action@v1
+      - uses: jakoch/install-vulkan-sdk-action@v1
         with:
-          vulkan_version: ${{ env.VULKAN_SDK_VERSION }}
-          optional_components: ${{ matrix.vulkan-components }}
+          vulkan_version: 1.4.335.0
+          optional_components: com.lunarg.vulkan.debug,com.lunarg.vulkan.vma
           install_runtime: false
-          cache: true
 
-      # Everything EppoCore and NeuralNetworkUI take from the SDK. Fails here with a clear list instead of deep inside
-      # the EppoCore build or the final link.
-      - name: Check Vulkan SDK contents
-        run: |
-          $sdk = $env:VULKAN_SDK
-          $headers = 'vulkan/vulkan.h', 'vulkan/vk_enum_string_helper.h', 'vma/vk_mem_alloc.h', 'shaderc/shaderc.hpp', 'spirv_cross/spirv_cross.hpp'
-          if ($IsWindows) {
-            $required = ($headers | ForEach-Object { "Include/$_" }) + (
-              'vulkan-1', 'shaderc_combined', 'shaderc_combinedd', 'spirv-cross-core', 'spirv-cross-cored' | ForEach-Object { "Lib/$_.lib" })
-          } else {
-            $required = ($headers | ForEach-Object { "include/$_" }) + 'lib/libvulkan.so', 'lib/libshaderc_combined.a', 'lib/libspirv-cross-core.a'
-          }
-          $missing = @($required | Where-Object { -not (Test-Path (Join-Path $sdk $_)) })
-          if ($missing.Count) { throw "Vulkan SDK at $sdk is missing:`n  $($missing -join "`n  ")" }
-          "Vulkan SDK at $sdk has all $($required.Count) required files"
-
-      # Setup.py would otherwise pick up the runner's preinstalled vcpkg from PATH. A short root under
-      # RUNNER_TEMP also keeps Windows buildtrees clear of MAX_PATH.
-      - name: Provision pinned vcpkg
-        env:
-          VCPKG_COMMIT: ${{ steps.pins.outputs.vcpkg-commit }}
-        run: |
-          $PSNativeCommandUseErrorActionPreference = $true
-          $root = Join-Path $env:RUNNER_TEMP 'vcpkg'
-          $cache = Join-Path $env:RUNNER_TEMP 'vcpkg-binary-cache'
-          git init -q $root
-          git -C $root fetch -q --depth 1 https://github.com/microsoft/vcpkg.git $env:VCPKG_COMMIT
-          git -C $root checkout -q --detach FETCH_HEAD
-          if ($IsWindows) { & "$root/bootstrap-vcpkg.bat" -disableMetrics } else { & sh "$root/bootstrap-vcpkg.sh" -disableMetrics }
-          New-Item -ItemType Directory -Force $cache | Out-Null
-          "VCPKG_ROOT=$root" >> $env:GITHUB_ENV
-          "VCPKG_BINARY_SOURCES=clear;files,$cache,readwrite" >> $env:GITHUB_ENV
-
-      - name: Restore vcpkg binary cache
-        id: vcpkg-cache
-        uses: actions/cache/restore@v4
+      - uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/vcpkg-binary-cache
-          key: vcpkg-${{ runner.os }}-${{ steps.pins.outputs.vcpkg-commit }}-${{ env.VULKAN_SDK_VERSION }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'Dependencies/**') }}
-          restore-keys: |
-            vcpkg-${{ runner.os }}-
+          path: .vcpkg-cache
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'Dependencies/**') }}
 
-      - name: Cache premake
-        uses: actions/cache@v4
-        with:
-          path: .tools/premake/${{ steps.pins.outputs.premake-version }}/bin
-          key: premake-${{ runner.os }}-${{ steps.pins.outputs.premake-version }}
-
-      - name: Setup (premake, vcpkg install, generate)
-        run: python Scripts/Setup.py --action ${{ matrix.action }} --yes
-
-      # Saved right after setup so a later compile failure doesn't throw away a cold EppoCore build
-      - name: Save vcpkg binary cache
-        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ runner.temp }}/vcpkg-binary-cache
-          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
-
-      - name: Build Debug
+      - name: Setup
         run: |
-          $buildTool = (Get-Content .tools/build.json | ConvertFrom-Json).buildTool
-          if ($IsWindows) { & $buildTool NeuralNetwork.slnx /m /nologo /v:minimal /p:Configuration=Debug /p:Platform=x64 }
-          else { & $buildTool Debug_x64 }
-          exit $LASTEXITCODE
+          mkdir -p .vcpkg-cache
+          python Scripts/Setup.py --action ${{ matrix.action }} --yes
 
-      - name: Build Release
+      - name: Build
         run: |
-          $buildTool = (Get-Content .tools/build.json | ConvertFrom-Json).buildTool
-          if ($IsWindows) { & $buildTool NeuralNetwork.slnx /m /nologo /v:minimal /p:Configuration=Release /p:Platform=x64 }
-          else { & $buildTool Release_x64 }
-          exit $LASTEXITCODE
+          if [ "$RUNNER_OS" = Windows ]; then
+            msbuild="$(python -c "import json; print(json.load(open('.tools/build.json'))['buildTool'])")"
+            for config in Debug Release; do
+              "$msbuild" NeuralNetwork.slnx -m -p:Configuration=$config -p:Platform=x64
+            done
+          else
+            ninja Debug_x64 Release_x64
+          fi
