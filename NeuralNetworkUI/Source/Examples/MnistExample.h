@@ -10,5 +10,6 @@ namespace NN
         MnistExample();
 
         auto OnUIRender() -> void override;
+        auto Train() -> void override;
     };
 }

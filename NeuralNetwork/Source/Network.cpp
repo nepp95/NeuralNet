@@ -99,68 +99,18 @@ namespace NN
         ZoneScoped;
 
         const uint32_t sampleCount = static_cast<uint32_t>(inputs.size()) / m_Params.InputCount;
-        const size_t inputsSize = inputs.size() * sizeof(float);
-        const size_t targetsSize = targets.size() * sizeof(float);
 
         if (trainingData)
         {
             m_SampleCount = sampleCount;
-
-            // Upload inputs
-            if (!m_GPUInputs || m_GPUInputs->GetSize() < inputsSize)
-            {
-                const GpuBufferSpecification spec{
-                    .Size = inputsSize,
-                    .DebugName = "Inputs",
-                };
-
-                m_GPUInputs = std::make_unique<GpuBuffer>(m_Device, spec);
-            }
-
-            m_GPUInputs->Upload(inputs.data(), inputsSize);
-
-            // Upload targets
-            if (!m_GPUTargets || m_GPUTargets->GetSize() < targetsSize)
-            {
-                const GpuBufferSpecification spec{
-                    .Size = targetsSize,
-                    .DebugName = "Targets",
-                };
-
-                m_GPUTargets = std::make_unique<GpuBuffer>(m_Device, spec);
-            }
-
-            m_GPUTargets->Upload(targets.data(), targetsSize);
+            UploadBuffer(m_GPUInputs, inputs, "Inputs");
+            UploadBuffer(m_GPUTargets, targets, "Targets");
         }
         else
         {
             m_TestSampleCount = sampleCount;
-
-            // Upload inputs
-            if (!m_GPUTestInputs || m_GPUTestInputs->GetSize() < inputsSize)
-            {
-                const GpuBufferSpecification spec{
-                    .Size = inputsSize,
-                    .DebugName = "Test Inputs",
-                };
-
-                m_GPUTestInputs = std::make_unique<GpuBuffer>(m_Device, spec);
-            }
-
-            m_GPUTestInputs->Upload(inputs.data(), inputsSize);
-
-            // Upload targets
-            if (!m_GPUTestTargets || m_GPUTestTargets->GetSize() < targetsSize)
-            {
-                const GpuBufferSpecification spec{
-                    .Size = targetsSize,
-                    .DebugName = "Test Targets",
-                };
-
-                m_GPUTestTargets = std::make_unique<GpuBuffer>(m_Device, spec);
-            }
-
-            m_GPUTestTargets->Upload(targets.data(), targetsSize);
+            UploadBuffer(m_GPUTestInputs, inputs, "Test Inputs");
+            UploadBuffer(m_GPUTestTargets, targets, "Test Targets");
         }
     }
 
@@ -170,139 +120,15 @@ namespace NN
 
         CommandList cmd(m_Device, QueueType::Compute);
 
-        const uint32_t groupSize = m_ForwardPipeline->GetLocalSize()[0];
-
         for (uint32_t epoch = 0; epoch < epochs; epoch++)
         {
             for (uint32_t batchStart = 0; batchStart < m_SampleCount; batchStart += m_Params.BatchSize)
             {
                 const uint32_t batchCount = std::min(m_Params.BatchSize, m_SampleCount - batchStart);
 
-                RecordForward(cmd, *m_GPUInputs, batchStart, batchCount);
-
-                // Backward
-                {
-                    EP_GPU_ZONE(cmd, "Backward");
-                    struct BackwardPushConstants
-                    {
-                        uint32_t OutputCount;
-                        uint32_t OutputOffset;
-                        uint32_t ActivationStride;
-                        uint32_t TargetOffset;
-                    } pushConstants;
-
-                    pushConstants.OutputCount = m_Params.OutputCount;
-                    pushConstants.OutputOffset = m_ActivationStride - m_Params.OutputCount;
-                    pushConstants.ActivationStride = m_ActivationStride;
-                    pushConstants.TargetOffset = batchStart * m_Params.OutputCount;
-
-                    cmd.Bind(*m_BackwardPipeline);
-                    cmd.Bind(0, *m_GPUActivations);
-                    cmd.Bind(1, *m_GPUTargets);
-                    cmd.Bind(2, *m_GPUDeltas);
-                    cmd.PushConstants(pushConstants);
-                    cmd.Dispatch((m_Params.OutputCount + groupSize - 1) / groupSize, batchCount);
-                    cmd.Barrier(*m_GPUDeltas, Access::ComputeWrite, Access::ComputeRead);
-                }
-
-                // Hidden deltas
-                struct HiddenDeltaPushConstants
-                {
-                    uint32_t NeuronCount;
-                    uint32_t NextCount;
-                    uint32_t NeuronOffset;
-                    uint32_t NextWeightOffset;
-                    uint32_t ActivationStride;
-                    uint32_t ActivationType;
-                } pushConstants2;
-
-                cmd.Bind(*m_HiddenDeltaPipeline);
-                cmd.Bind(0, *m_GPUActivations);
-                cmd.Bind(1, *m_GPUWeights);
-                cmd.Bind(2, *m_GPUDeltas);
-
-                uint32_t nextCount = m_Params.OutputCount;
-                uint32_t nextOffset = m_ActivationStride - m_Params.OutputCount;
-                uint32_t nextWeightOffset = m_WeightCount;
-
-                for (size_t l = m_Params.Layers.size(); l-- > 0;)
-                {
-                    EP_GPU_ZONE(cmd, "Hidden Delta");
-
-                    const uint32_t neuronCount = m_Params.Layers[l].NeuronCount;
-                    nextWeightOffset -= nextCount * neuronCount;
-
-                    pushConstants2.NeuronCount = neuronCount;
-                    pushConstants2.NextCount = nextCount;
-                    pushConstants2.NeuronOffset = nextOffset - neuronCount;
-                    pushConstants2.NextWeightOffset = nextWeightOffset;
-                    pushConstants2.ActivationStride = m_ActivationStride;
-                    pushConstants2.ActivationType = static_cast<uint32_t>(m_Params.Layers[l].Activation);
-
-                    cmd.PushConstants(pushConstants2);
-                    cmd.Dispatch((neuronCount + groupSize - 1) / groupSize, batchCount);
-                    cmd.Barrier(*m_GPUDeltas, Access::ComputeWrite, Access::ComputeRead);
-
-                    nextCount = neuronCount;
-                    nextOffset -= neuronCount;
-                }
-
-                // Update weights and biases
-                struct UpdatePushConstants
-                {
-                    uint32_t InputCount;
-                    uint32_t OutputCount;
-                    uint32_t InputOffset;
-                    uint32_t InputStride;
-                    uint32_t WeightOffset;
-                    uint32_t BiasOffset;
-                    uint32_t ActivationStride;
-                    uint32_t BatchCount;
-                    float LearningRate;
-                } pushConstants3;
-
-                cmd.Bind(*m_UpdatePipeline);
-                cmd.Bind(1, *m_GPUDeltas);
-                cmd.Bind(2, *m_GPUWeights);
-                cmd.Bind(3, *m_GPUBiases);
-
-                const GpuBuffer* layerInput = m_GPUInputs.get();
-                uint32_t inputCount = m_Params.InputCount;
-                uint32_t inputOffset = batchStart * m_Params.InputCount;
-                uint32_t inputStride = m_Params.InputCount;
-                uint32_t weightOffset = 0;
-                uint32_t biasOffset = 0;
-
-                for (size_t l = 0; l <= m_Params.Layers.size(); l++)
-                {
-                    EP_GPU_ZONE(cmd, "Update");
-
-                    const bool isOutput = l == m_Params.Layers.size();
-                    const uint32_t outputCount = isOutput ? m_Params.OutputCount : m_Params.Layers[l].NeuronCount;
-
-                    pushConstants3.InputCount = inputCount;
-                    pushConstants3.OutputCount = outputCount;
-                    pushConstants3.InputOffset = inputOffset;
-                    pushConstants3.InputStride = inputStride;
-                    pushConstants3.WeightOffset = weightOffset;
-                    pushConstants3.BiasOffset = biasOffset;
-                    pushConstants3.ActivationStride = m_ActivationStride;
-                    pushConstants3.BatchCount = batchCount;
-                    pushConstants3.LearningRate = m_Params.LearningConstant;
-
-                    cmd.PushConstants(pushConstants3);
-                    cmd.Bind(0, *layerInput);
-                    cmd.Dispatch((outputCount + groupSize - 1) / groupSize, inputCount + 1);
-
-                    inputOffset = biasOffset;
-                    weightOffset += inputCount * outputCount;
-                    biasOffset += outputCount;
-                    inputCount = outputCount;
-                    inputStride = m_ActivationStride;
-                    layerInput = m_GPUActivations.get();
-                }
-
-                cmd.Barrier(Access::ComputeWrite, Access::ComputeRead);
+                Forward(cmd, *m_GPUInputs, batchStart, batchCount);
+                Backward(cmd, *m_GPUTargets, batchStart, batchCount);
+                Update(cmd, *m_GPUInputs, batchStart, batchCount);
             }
         }
 
@@ -312,14 +138,22 @@ namespace NN
         }
     }
 
-    auto Network::Evaluate() -> std::vector<float>
+    auto Network::Evaluate(std::span<const float> inputs) -> std::vector<float>
     {
         ZoneScoped;
 
-        // Evaluate runs the whole dataset at once, so activations need a row per sample
-        const uint32_t sampleCount = m_TestSampleCount > 0 ? m_TestSampleCount : m_SampleCount;
-        GpuBuffer& inputs = m_TestSampleCount > 0 ? *m_GPUTestInputs : *m_GPUInputs;
+        // Without inputs, evaluate the test set (or the training set if there is none)
+        uint32_t sampleCount = m_TestSampleCount > 0 ? m_TestSampleCount : m_SampleCount;
+        const GpuBuffer* evaluateInputs = m_TestSampleCount > 0 ? m_GPUTestInputs.get() : m_GPUInputs.get();
 
+        if (!inputs.empty())
+        {
+            sampleCount = static_cast<uint32_t>(inputs.size()) / m_Params.InputCount;
+            UploadBuffer(m_GPUEvaluateInputs, inputs, "Evaluate Inputs");
+            evaluateInputs = m_GPUEvaluateInputs.get();
+        }
+
+        // Evaluate runs all samples at once, so activations need a row per sample
         const size_t activationsSize = static_cast<size_t>(std::max(sampleCount, m_Params.BatchSize)) * m_ActivationStride * sizeof(float);
         if (m_GPUActivations->GetSize() < activationsSize)
         {
@@ -333,7 +167,7 @@ namespace NN
 
         // Forward
         CommandList cmd(m_Device, QueueType::Compute);
-        RecordForward(cmd, inputs, 0, sampleCount);
+        Forward(cmd, *evaluateInputs, 0, sampleCount);
         m_Device.Submit(cmd).Wait();
 
         // Download activations
@@ -352,8 +186,10 @@ namespace NN
         return outputs;
     }
 
-    auto Network::RecordForward(CommandList& cmd, GpuBuffer& inputs, const uint32_t batchStart, const uint32_t batchCount) -> void
+    auto Network::Forward(CommandList& cmd, const GpuBuffer& inputs, const uint32_t sampleOffset, const uint32_t sampleCount) -> void
     {
+        ZoneScoped;
+
         cmd.Bind(*m_ForwardPipeline);
         cmd.Bind(1, *m_GPUWeights);
         cmd.Bind(2, *m_GPUBiases);
@@ -363,7 +199,7 @@ namespace NN
 
         const GpuBuffer* layerInput = &inputs;
         uint32_t inputCount = m_Params.InputCount;
-        uint32_t inputOffset = batchStart * m_Params.InputCount;
+        uint32_t inputOffset = sampleOffset * m_Params.InputCount;
         uint32_t weightOffset = 0;
         uint32_t biasOffset = 0;
         uint32_t inputStride = m_Params.InputCount;
@@ -399,7 +235,7 @@ namespace NN
 
             cmd.PushConstants(pushConstants);
             cmd.Bind(0, *layerInput);
-            cmd.Dispatch((outputCount + groupSize - 1) / groupSize, batchCount);
+            cmd.Dispatch((outputCount + groupSize - 1) / groupSize, sampleCount);
             cmd.Barrier(*m_GPUActivations, Access::ComputeWrite, Access::ComputeRead);
 
             inputOffset = biasOffset;
@@ -426,13 +262,170 @@ namespace NN
             pushConstants.OutputCount = m_Params.OutputCount;
             pushConstants.OutputOffset = m_ActivationStride - m_Params.OutputCount;
             pushConstants.ActivationStride = m_ActivationStride;
-            pushConstants.SampleCount = batchCount;
+            pushConstants.SampleCount = sampleCount;
 
             cmd.Bind(*m_SoftmaxPipeline);
             cmd.Bind(0, *m_GPUActivations);
             cmd.PushConstants(pushConstants);
-            cmd.Dispatch((batchCount + groupSize - 1) / groupSize);
+            cmd.Dispatch((sampleCount + groupSize - 1) / groupSize);
             cmd.Barrier(*m_GPUActivations, Access::ComputeWrite, Access::ComputeRead);
         }
+    }
+
+    auto Network::Backward(CommandList& cmd, const GpuBuffer& targets, const uint32_t sampleOffset, const uint32_t sampleCount) -> void
+    {
+        ZoneScoped;
+
+        const uint32_t groupSize = m_BackwardPipeline->GetLocalSize()[0];
+
+        // Output deltas
+        {
+            EP_GPU_ZONE(cmd, "Backward");
+
+            struct BackwardPushConstants
+            {
+                uint32_t OutputCount;
+                uint32_t OutputOffset;
+                uint32_t ActivationStride;
+                uint32_t TargetOffset;
+            } pushConstants;
+
+            pushConstants.OutputCount = m_Params.OutputCount;
+            pushConstants.OutputOffset = m_ActivationStride - m_Params.OutputCount;
+            pushConstants.ActivationStride = m_ActivationStride;
+            pushConstants.TargetOffset = sampleOffset * m_Params.OutputCount;
+
+            cmd.Bind(*m_BackwardPipeline);
+            cmd.Bind(0, *m_GPUActivations);
+            cmd.Bind(1, targets);
+            cmd.Bind(2, *m_GPUDeltas);
+            cmd.PushConstants(pushConstants);
+            cmd.Dispatch((m_Params.OutputCount + groupSize - 1) / groupSize, sampleCount);
+            cmd.Barrier(*m_GPUDeltas, Access::ComputeWrite, Access::ComputeRead);
+        }
+
+        // Hidden deltas, from the last hidden layer back to the first
+        struct HiddenDeltaPushConstants
+        {
+            uint32_t NeuronCount;
+            uint32_t NextCount;
+            uint32_t NeuronOffset;
+            uint32_t NextWeightOffset;
+            uint32_t ActivationStride;
+            uint32_t ActivationType;
+        } pushConstants;
+
+        cmd.Bind(*m_HiddenDeltaPipeline);
+        cmd.Bind(0, *m_GPUActivations);
+        cmd.Bind(1, *m_GPUWeights);
+        cmd.Bind(2, *m_GPUDeltas);
+
+        uint32_t nextCount = m_Params.OutputCount;
+        uint32_t nextOffset = m_ActivationStride - m_Params.OutputCount;
+        uint32_t nextWeightOffset = m_WeightCount;
+
+        for (size_t l = m_Params.Layers.size(); l-- > 0;)
+        {
+            EP_GPU_ZONE(cmd, "Hidden Delta");
+
+            const uint32_t neuronCount = m_Params.Layers[l].NeuronCount;
+            nextWeightOffset -= nextCount * neuronCount;
+
+            pushConstants.NeuronCount = neuronCount;
+            pushConstants.NextCount = nextCount;
+            pushConstants.NeuronOffset = nextOffset - neuronCount;
+            pushConstants.NextWeightOffset = nextWeightOffset;
+            pushConstants.ActivationStride = m_ActivationStride;
+            pushConstants.ActivationType = static_cast<uint32_t>(m_Params.Layers[l].Activation);
+
+            cmd.PushConstants(pushConstants);
+            cmd.Dispatch((neuronCount + groupSize - 1) / groupSize, sampleCount);
+            cmd.Barrier(*m_GPUDeltas, Access::ComputeWrite, Access::ComputeRead);
+
+            nextCount = neuronCount;
+            nextOffset -= neuronCount;
+        }
+    }
+
+    auto Network::Update(CommandList& cmd, const GpuBuffer& inputs, const uint32_t sampleOffset, const uint32_t sampleCount) -> void
+    {
+        ZoneScoped;
+
+        const uint32_t groupSize = m_UpdatePipeline->GetLocalSize()[0];
+
+        struct UpdatePushConstants
+        {
+            uint32_t InputCount;
+            uint32_t OutputCount;
+            uint32_t InputOffset;
+            uint32_t InputStride;
+            uint32_t WeightOffset;
+            uint32_t BiasOffset;
+            uint32_t ActivationStride;
+            uint32_t BatchCount;
+            float LearningRate;
+        } pushConstants;
+
+        cmd.Bind(*m_UpdatePipeline);
+        cmd.Bind(1, *m_GPUDeltas);
+        cmd.Bind(2, *m_GPUWeights);
+        cmd.Bind(3, *m_GPUBiases);
+
+        const GpuBuffer* layerInput = &inputs;
+        uint32_t inputCount = m_Params.InputCount;
+        uint32_t inputOffset = sampleOffset * m_Params.InputCount;
+        uint32_t inputStride = m_Params.InputCount;
+        uint32_t weightOffset = 0;
+        uint32_t biasOffset = 0;
+
+        for (size_t l = 0; l <= m_Params.Layers.size(); l++)
+        {
+            EP_GPU_ZONE(cmd, "Update");
+
+            const bool isOutput = l == m_Params.Layers.size();
+            const uint32_t outputCount = isOutput ? m_Params.OutputCount : m_Params.Layers[l].NeuronCount;
+
+            pushConstants.InputCount = inputCount;
+            pushConstants.OutputCount = outputCount;
+            pushConstants.InputOffset = inputOffset;
+            pushConstants.InputStride = inputStride;
+            pushConstants.WeightOffset = weightOffset;
+            pushConstants.BiasOffset = biasOffset;
+            pushConstants.ActivationStride = m_ActivationStride;
+            pushConstants.BatchCount = sampleCount;
+            pushConstants.LearningRate = m_Params.LearningConstant;
+
+            cmd.PushConstants(pushConstants);
+            cmd.Bind(0, *layerInput);
+            cmd.Dispatch((outputCount + groupSize - 1) / groupSize, inputCount + 1);
+
+            inputOffset = biasOffset;
+            weightOffset += inputCount * outputCount;
+            biasOffset += outputCount;
+            inputCount = outputCount;
+            inputStride = m_ActivationStride;
+            layerInput = m_GPUActivations.get();
+        }
+
+        cmd.Barrier(Access::ComputeWrite, Access::ComputeRead);
+    }
+
+    auto Network::UploadBuffer(std::unique_ptr<GpuBuffer>& buffer, std::span<const float> data, const std::string_view debugName) -> void
+    {
+        ZoneScoped;
+
+        const size_t size = data.size() * sizeof(float);
+
+        if (!buffer || buffer->GetSize() < size)
+        {
+            const GpuBufferSpecification spec{
+                .Size = size,
+                .DebugName = std::string(debugName),
+            };
+
+            buffer = std::make_unique<GpuBuffer>(m_Device, spec);
+        }
+
+        buffer->Upload(data.data(), size);
     }
 }

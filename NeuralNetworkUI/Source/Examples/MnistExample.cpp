@@ -53,6 +53,48 @@ namespace NN
         m_Network->UploadDataset(m_TestDataset.Inputs, m_TestDataset.Targets, false);
     }
 
+    auto MnistExample::Train() -> void
+    {
+        if (!m_Network)
+            return;
+
+        ZoneScoped;
+
+        m_Network->Train(m_EpochsPerStep);
+        m_Outputs = m_Network->Evaluate();
+
+        const Dataset& dataset = m_TestDataset.SampleCount > 0 ? m_TestDataset : m_Dataset;
+
+        const uint32_t outputCount = dataset.OutputCount;
+        uint32_t correct = 0;
+        float squaredError = 0.0f;
+
+        for (uint32_t s = 0; s < dataset.SampleCount; s++)
+        {
+            const float* output = &m_Outputs[s * outputCount];
+            const float* target = &dataset.Targets[s * outputCount];
+
+            uint32_t predicted = 0;
+            uint32_t actual = 0;
+
+            for (uint32_t i = 0; i < outputCount; i++)
+            {
+                if (output[i] > output[predicted])
+                    predicted = i;
+                if (target[i] > target[actual])
+                    actual = i;
+
+                squaredError += (output[i] - target[i]) * (output[i] - target[i]);
+            }
+
+            correct += predicted == actual;
+        }
+
+        m_Epochs.push_back((m_Epochs.empty() ? 0.0f : m_Epochs.back()) + static_cast<float>(m_EpochsPerStep));
+        m_Accuracy.push_back(static_cast<float>(correct) / static_cast<float>(dataset.SampleCount));
+        m_Loss.push_back(squaredError / static_cast<float>(m_Outputs.size()));
+    }
+
     auto MnistExample::OnUIRender() -> void
     {
         if (m_Outputs.empty())
@@ -69,8 +111,17 @@ namespace NN
             const float* output = &m_Outputs[s * classCount];
             const float* target = &dataset.Targets[s * classCount];
 
-            const auto actual = std::max_element(target, target + classCount) - target;
-            const auto predicted = std::max_element(output, output + classCount) - output;
+            int actual = 0;
+            int predicted = 0;
+
+            for (int i = 0; i < classCount; i++)
+            {
+                if (target[i] > target[actual])
+                    actual = i;
+                if (output[i] > output[predicted])
+                    predicted = i;
+            }
+
             confusion[actual * classCount + predicted] += 1.0f;
         }
 

@@ -11,7 +11,7 @@ namespace NN
 
         virtual auto OnUIRender() -> void {}
 
-        auto Train() -> void;
+        virtual auto Train() -> void = 0;
 
         [[nodiscard]] auto GetEpochs() const -> const std::vector<float>& { return m_Epochs; }
         [[nodiscard]] auto GetAccuracy() const -> const std::vector<float>& { return m_Accuracy; }
@@ -26,7 +26,6 @@ namespace NN
         std::vector<float> m_Outputs;
         int m_EpochsPerStep = 1;
 
-    private:
         std::vector<float> m_Epochs;
         std::vector<float> m_Accuracy;
         std::vector<float> m_Loss;
